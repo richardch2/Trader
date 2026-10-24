@@ -134,7 +134,7 @@ def run(config, client, previous):
     prices = {s: v["price"] for s, v in stocks.items()}
 
     # same holdings date as last run (weekend, holiday): keep the existing ranking
-    if previous.get("asOf") == as_of and previous.get("gainers"):
+    if previous.get("asOf") == as_of:
         print("  smallcaps: holdings unchanged since last run, keeping the ranking")
         return {**previous, "members": members, "prices": prices, "failures": []}
 

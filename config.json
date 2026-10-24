@@ -10,8 +10,8 @@
     "minIntervalSeconds": 13
   },
   "supabase": {
-    "url": "",
-    "anonKey": ""
+    "url": "https://rxuumoyovdaucibskwrk.supabase.co",
+    "anonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dXVtb3lvdmRhdWNpYnNrd3JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4NzIyNDQsImV4cCI6MjEwODQ0ODI0NH0.dzFwyL1elbGnDPpAC88awH3sPellzvsSO99Dz7tn0n0"
   },
   "tickers": [
     {
