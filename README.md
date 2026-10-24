@@ -6,8 +6,9 @@ trading day by a GitHub Action. Live at **<https://richardch2.github.io/Trader/>
 Everything is driven by `config.json`: which tickers to track, the watchlist, the pages in the menu and the
 cards on each, and which data fetchers run each day.
 
-**Pages:** Overview (`#overview`), Top 10 (`#top10`, the day's biggest Russell 2000 gainers), Watchlist
-(`#watchlist`), and a detail page for any ticker (`#ticker/IWM`), opened by tapping a row or a mover.
+**Pages:** Overview (`#overview`), Top 10 (`#top10`, the day's biggest Russell 2000 gainers), Picks
+(`#picks`, daily ideas from moving averages, MACD and RSI), Watchlist (`#watchlist`), and a detail page for any
+ticker (`#ticker/IWM`), opened by tapping a row or a mover.
 
 Stocks are added to the watchlist from the site itself (Add buttons on the Top 10, an Add-a-ticker box, and
 each ticker's page), stored in a free Supabase database with email sign-in. See *Hosted watchlist* below.
@@ -23,7 +24,8 @@ js/lib/                  formatting and chart helpers; db.js talks to the hosted
 js/cards/*.js            one file per card type
 scripts/update.py        runs every enabled fetcher, writes data/<name>.json
 scripts/av_client.py     shared Alpha Vantage client (rate limit + daily budget)
-scripts/fetchers/*.py    one file per kind of data (prices, smallcaps = Russell 2000 top gainers)
+scripts/fetchers/*.py    one file per kind of data (prices, smallcaps = Russell 2000 top gainers,
+                         picks = technical signals)
 supabase/setup.sql       one-time database setup for the hosted watchlist
 data/                    fetcher output, committed by the workflow
 .github/workflows/       daily "Update data" job
@@ -61,6 +63,35 @@ capped at 15 stocks to stay within the free API budget.
 index with its last close), compares it with the previous run's prices, and keeps the 10 biggest gainers.
 It costs no Alpha Vantage calls. Stocks under $1 and moves over +200% (usually reverse splits) are skipped.
 iShares publishes the file a day after the close, so the list is labeled with the date it covers.
+
+## Daily picks
+
+`scripts/fetchers/picks.py` scans every Russell 2000 stock, the index tickers and the watchlist for technical
+signals and scores each one. It costs no Alpha Vantage calls.
+
+| Signal | Points |
+|---|---|
+| 20-day average crosses the 50-day (in the last 3 sessions) | ±3 |
+| 50-day crosses the 200-day (golden / death cross, once there are 200 days) | ±3 |
+| Price crosses the 50-day average | ±2 |
+| MACD (12, 26) crosses its 9-day signal line | ±2 |
+| RSI (14) climbs back above 30 | +2 |
+| Price above (below) both the 20- and 50-day averages | ±1 |
+| 20-day return beats (trails) the Russell 2000 by over 5 pts | ±1 |
+| RSI over 70, turning down from 70, or price over 15% above the 20-day | −1 |
+
+The Picks page lists the 10 highest scores of +3 or more (stocks of $5 and up), the 5 lowest of −3 or less, and
+every watchlist stock's signals; each ticker's page shows its price with the 20- and 50-day averages. These are
+mechanical signals, not advice. Thresholds are constants at the top of the file.
+
+Watchlist and index stocks use their full price history from `data/prices.json`. For the rest, the fetcher keeps
+60 days of Russell 2000 closes in `data/picks-history.json` (about 800 KB, not loaded by the page), one day per
+iShares holdings file. While that history is short it downloads older holdings files, 30 a run, so picks start
+after the first run or two. If iShares stops serving older files, history builds one day per run instead and picks
+start after 21 trading days.
+
+If you set up the hosted watchlist before the Picks page existed, run `supabase/allow-picks-source.sql` once in
+the SQL Editor so stocks can be added from it.
 
 ## Common changes (config only)
 
@@ -106,6 +137,8 @@ you can write `$primary`, `$benchmark`, or `$route` (the ticker in the address, 
 | `ticker` | `symbol` (default `$route`) — key figures, price chart, and Add/Remove watchlist button |
 | `topgainers` | `title`, `note`, `count` (default 10) — the day's top Russell 2000 gainers with Add buttons |
 | `addticker` | `title`, `note` — add any ticker to the hosted watchlist, with Russell 2000 suggestions |
+| `picks` | `title`, `note`, `list` (`picks`, `cautions`, `watchlist` or `tickers`), `count` — technical signals with scores |
+| `technicals` | `symbol` (default `$route`) — price with 20- and 50-day averages, RSI, MACD and the day's signals |
 
 For example, a second spread card for small-cap value against the S&P 500:
 

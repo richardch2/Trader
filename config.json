@@ -64,6 +64,10 @@
     {
       "name": "smallcaps",
       "enabled": true
+    },
+    {
+      "name": "picks",
+      "enabled": true
     }
   ],
   "pages": [
@@ -122,6 +126,29 @@
         {
           "type": "addticker",
           "width": "full"
+        }
+      ]
+    },
+    {
+      "id": "picks",
+      "title": "Picks",
+      "heading": "Today's picks",
+      "ranges": false,
+      "cards": [
+        {
+          "type": "picks",
+          "width": "full",
+          "list": "picks"
+        },
+        {
+          "type": "picks",
+          "width": "full",
+          "list": "cautions"
+        },
+        {
+          "type": "picks",
+          "width": "full",
+          "list": "watchlist"
         }
       ]
     },
@@ -188,6 +215,10 @@
       "cards": [
         {
           "type": "ticker",
+          "width": "full"
+        },
+        {
+          "type": "technicals",
           "width": "full"
         },
         {

@@ -16,7 +16,7 @@ create table if not exists public.watchlist (
   symbol     text not null unique check (symbol ~ '^[A-Z][A-Z0-9.\-]{0,9}$'),
   name       text,
   note       text check (char_length(note) <= 280),
-  source     text not null default 'manual' check (source in ('manual', 'top10')),
+  source     text not null default 'manual' check (source in ('manual', 'top10', 'picks')),
   added      date not null default current_date,
   added_by   uuid default auth.uid(),
   created_at timestamptz not null default now()

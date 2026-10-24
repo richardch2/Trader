@@ -258,3 +258,19 @@ td.left, th.left { text-align: left; }
   .account-who { display: none; }
   .bar-inner { gap: 8px; }
 }
+
+/* ---------- picks and technicals ---------- */
+.score {
+  display: inline-block; min-width: 2.5em; text-align: center; font: 500 13px var(--mono);
+  border: 1px solid currentColor; border-radius: 6px; padding: 1px 6px;
+}
+th.signals-col, td.signals-col { white-space: normal; min-width: 220px; }
+.signals { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+div.signals-col { margin: 0 0 16px; }
+.signal {
+  font-size: 12px; line-height: 1.4; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted); background: var(--bg);
+}
+.signal.pos { color: var(--up); border-color: color-mix(in srgb, var(--up) 35%, transparent); background: color-mix(in srgb, var(--up) 8%, transparent); }
+.signal.neg { color: var(--down); border-color: color-mix(in srgb, var(--down) 35%, transparent); background: color-mix(in srgb, var(--down) 8%, transparent); }
+@media (max-width: 640px) { th.signals-col, td.signals-col { min-width: 180px; } }

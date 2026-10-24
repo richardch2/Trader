@@ -1,7 +1,7 @@
 // Daily top gainers among Russell 2000 stocks (from data/smallcaps.json), each
 // with a button to add it to the hosted watchlist.
 // Options: title, note, count (default 10)
-import { cardHead, h } from "../core.js";
+import { cardHead, h, addCell } from "../core.js";
 import { pct, money, tone, date } from "../lib/format.js";
 
 export default function topgainers(opts, ctx) {
@@ -50,7 +50,7 @@ export default function topgainers(opts, ctx) {
         sym.append(a);
         tr.append(h("td", "rank muted", String(i + 1)), sym, h("td", "name left hide-sm", r.name), h("td", "muted left hide-md", r.sector),
           h("td", null, money(r.price)), h("td", tone(r.change), pct(r.change)));
-        if (showAction) tr.append(actionCell(r));
+        if (showAction) tr.append(addCell(ctx, r, "top10"));
         tbody.append(tr);
       });
       table.addEventListener("click", (ev) => {
@@ -60,23 +60,4 @@ export default function topgainers(opts, ctx) {
       body.append(table);
     },
   };
-
-  function actionCell(r) {
-    const td = h("td", "action");
-    if (ctx.onWatchlist(r.symbol)) {
-      td.append(h("span", "watching", "✓ Watching"));
-    } else if (ctx.db.canEdit) {
-      const b = h("button", "btn small", "+ Add");
-      b.addEventListener("click", async () => {
-        b.disabled = true; b.textContent = "Adding…";
-        try { await ctx.addToWatchlist({ symbol: r.symbol, name: r.name, source: "top10" }); }
-        catch (e) { ctx.toast(e.message, true); b.disabled = false; b.textContent = "+ Add"; }
-      });
-      td.append(b);
-    } else {
-      const s = h("span", "muted small-text", ctx.db.email ? "View only" : "Sign in to add");
-      td.append(s);
-    }
-    return td;
-  }
 }

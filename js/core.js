@@ -163,3 +163,25 @@ export function editLink(ctx, label = "Edit list") {
   a.rel = "noopener";
   return a;
 }
+
+/**
+ * Table cell with "+ Add" to the hosted watchlist, "✓ Watching" if already there, or a
+ * sign-in hint. item: {symbol, name}; source says where it was added from.
+ */
+export function addCell(ctx, item, source) {
+  const td = h("td", "action");
+  if (ctx.onWatchlist(item.symbol)) {
+    td.append(h("span", "watching", "✓ Watching"));
+  } else if (ctx.db.canEdit) {
+    const b = h("button", "btn small", "+ Add");
+    b.addEventListener("click", async () => {
+      b.disabled = true; b.textContent = "Adding…";
+      try { await ctx.addToWatchlist({ symbol: item.symbol, name: item.name, source }); }
+      catch (e) { ctx.toast(e.message, true); b.disabled = false; b.textContent = "+ Add"; }
+    });
+    td.append(b);
+  } else {
+    td.append(h("span", "muted small-text", ctx.db.email ? "View only" : "Sign in to add"));
+  }
+  return td;
+}

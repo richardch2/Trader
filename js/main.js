@@ -159,10 +159,12 @@ async function route() {
   ctx.route = { page: page.id, arg };
 
   // menu: highlight the current page (a hidden page highlights its parent)
-  // a ticker page belongs under Watchlist if the ticker is on the watchlist, else under the first page
+  // a ticker page belongs under Watchlist if the ticker is on the watchlist, then Picks or Top 10 if listed there, else the first page
   const inTop = ctx.data.smallcaps?.gainers?.some((g) => g.symbol === arg) && pages.some((p) => p.id === "top10");
+  const inPicks = [...(ctx.data.picks?.picks || []), ...(ctx.data.picks?.cautions || [])].some((r) => r.symbol === arg)
+    && pages.some((p) => p.id === "picks");
   const parent = page.parent || (page.id !== "ticker" ? pages[0].id
-    : ctx.watchlist.some((w) => w.symbol === arg) ? "watchlist" : inTop ? "top10" : pages[0].id);
+    : ctx.watchlist.some((w) => w.symbol === arg) ? "watchlist" : inPicks ? "picks" : inTop ? "top10" : pages[0].id);
   const current = page.hidden ? parent : page.id;
   document.querySelectorAll("#menu a").forEach((a) => a.toggleAttribute("aria-current", a.dataset.page === current));
 
