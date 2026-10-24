@@ -46,6 +46,11 @@ async function boot() {
   buildMenu();
   buildRanges();
   renderAccount();
+  if (db.linkError) toast(`Sign-in link didn't work: ${db.linkError}. Request a new one from Sign in.`, true);
+  else if (db.email && sessionStorage.getItem("welcomed") !== db.email) {
+    try { sessionStorage.setItem("welcomed", db.email); } catch {}
+    toast(db.canEdit ? `Signed in as ${db.email}.` : `Signed in as ${db.email} (view only).`);
+  }
   db.onAuthChange(() => { renderAccount(); route(); });
   addEventListener("hashchange", route);
   let t;
@@ -107,7 +112,7 @@ function renderAccount() {
   Object.assign(input, { type: "email", placeholder: "you@example.com", autocomplete: "email", required: true });
   input.setAttribute("aria-label", "Email");
   const send = h("button", "btn", "Email me a link");
-  const msg = h("p", "account-msg", "We'll email you a one-time sign-in link.");
+  const msg = h("p", "account-msg", "We'll email you a one-time sign-in link. It signs in whichever device you open it on.");
   const submit = async () => {
     if (!input.value || !input.checkValidity()) { msg.textContent = "Enter a valid email."; return; }
     send.disabled = true;
@@ -116,7 +121,8 @@ function renderAccount() {
       await db.signIn(input.value.trim());
       msg.textContent = "Check your email and tap the link to sign in.";
     } catch (e) {
-      msg.textContent = e.message;
+      msg.textContent = /after \d+ seconds|rate limit/i.test(e.message)
+        ? "Too many requests. Wait a minute, then try again." : e.message;
     } finally { send.disabled = false; }
   };
   send.addEventListener("click", submit);

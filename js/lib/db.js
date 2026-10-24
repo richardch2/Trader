@@ -12,15 +12,18 @@ export async function connect(settings) {
   let client;
   try {
     const { createClient } = await import(CDN);
-    client = createClient(settings.url, settings.anonKey, { auth: { persistSession: true, detectSessionInUrl: true, flowType: "pkce" } });
+    client = createClient(settings.url, settings.anonKey, { auth: { persistSession: true, detectSessionInUrl: true, flowType: "implicit" } });
   } catch (e) {
     console.error("Couldn't load the database client:", e);
     return disabled("Couldn't reach the database.");
   }
 
+  // A sign-in link returns with #access_token=… (signs in whichever device opens it)
+  // or #error=… (expired or already used). Read it before the page router sees it.
+  const returned = new URLSearchParams(location.hash.slice(1));
+  const linkError = returned.get("error_description");
   let session = (await client.auth.getSession()).data.session;
-  // a sign-in link returns with ?code=…; once exchanged, tidy the address
-  if (new URLSearchParams(location.search).has("code")) history.replaceState(null, "", location.pathname + location.hash);
+  if (returned.has("access_token") || returned.has("error")) history.replaceState(null, "", location.pathname + location.search + "#overview");
   let editor = session ? await checkEditor() : false;
   const listeners = new Set();
 
@@ -42,6 +45,8 @@ export async function connect(settings) {
 
   return {
     enabled: true,
+    /** Set when the page was opened from a sign-in link that didn't work. */
+    linkError: linkError ? linkError.replace(/\+/g, " ") : null,
     get email() { return session?.user?.email || null; },
     /** Signed in and allowed to change the list. */
     get canEdit() { return editor; },
