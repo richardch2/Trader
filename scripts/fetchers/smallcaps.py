@@ -40,7 +40,10 @@ def num(s):
 
 def download(as_of=None) -> str:
     """Return the first holdings file that looks like CSV; with as_of (a date), that day's file."""
-    urls = HOLDINGS_URLS if as_of is None else [f"{HOLDINGS_URLS[1]}&asOfDate={as_of:%Y%m%d}"]
+    urls = HOLDINGS_URLS if as_of is None else [
+        f"{HOLDINGS_URLS[0]}?asOfDate={as_of:%Y%m%d}",
+        f"{HOLDINGS_URLS[1]}&asOfDate={as_of:%Y%m%d}",
+    ]
     problems = []
     for url in urls:
         req = urllib.request.Request(url, headers={
