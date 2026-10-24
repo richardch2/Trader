@@ -235,4 +235,37 @@ function syncRanges() {
   $("#ranges").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.textContent === ctx.state.range)));
 }
 
+// ---------- install as an app (tablet, phone, desktop) ----------
+function setupInstall() {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch((e) => console.warn("Offline support unavailable:", e));
+  }
+  const installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (installed) return;
+  const btn = $("#install");
+  let prompt = null;
+  // Chrome, Edge and Android offer an install prompt the page can trigger
+  addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    prompt = e;
+    btn.hidden = false;
+  });
+  addEventListener("appinstalled", () => { btn.hidden = true; prompt = null; });
+  // iPhone and iPad have no prompt: point to Share → Add to Home Screen
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (ios) btn.hidden = false;
+  btn.addEventListener("click", async () => {
+    if (prompt) {
+      prompt.prompt();
+      const { outcome } = await prompt.userChoice;
+      if (outcome === "accepted") btn.hidden = true;
+      prompt = null;
+    } else if (ios) {
+      toast("To install: tap the Share button, then Add to Home Screen.");
+    }
+  });
+  if (!navigator.onLine) toast("You're offline. Showing the last saved data.");
+}
+
+setupInstall();
 boot();

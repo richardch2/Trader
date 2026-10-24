@@ -13,11 +13,22 @@ ticker (`#ticker/IWM`), opened by tapping a row or a mover.
 Stocks are added to the watchlist from the site itself (Add buttons on the Top 10, an Add-a-ticker box, and
 each ticker's page), stored in a free Supabase database with email sign-in. See *Hosted watchlist* below.
 
+## Install as an app
+
+The site installs like an app on a phone, tablet or computer and opens to the last saved data when offline.
+
+- **iPhone / iPad (Safari):** tap **Install app** in the menu bar (or Share), then **Add to Home Screen**.
+- **Android / Chrome / Edge:** tap **Install app** in the menu bar, or *Install app* in the browser menu.
+
+`manifest.webmanifest` sets the name, icons (`icons/`) and colors; `sw.js` keeps a copy of each page and data
+file it loads, always trying the network first so updates show up straight away.
+
 ## Layout
 
 ```
 config.json              tickers, watchlist, pages + cards, fetchers, API limits
 index.html, styles.css   page shell and styles
+manifest.webmanifest     app name, icons and colors for installing; sw.js keeps it working offline
 js/main.js               loads config + data, builds the menu, mounts the current page's cards
 js/core.js               the `ctx` every card gets: data helpers and shared state
 js/lib/                  formatting and chart helpers; db.js talks to the hosted watchlist

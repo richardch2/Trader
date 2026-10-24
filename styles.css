@@ -274,3 +274,13 @@ div.signals-col { margin: 0 0 16px; }
 .signal.pos { color: var(--up); border-color: color-mix(in srgb, var(--up) 35%, transparent); background: color-mix(in srgb, var(--up) 8%, transparent); }
 .signal.neg { color: var(--down); border-color: color-mix(in srgb, var(--down) 35%, transparent); background: color-mix(in srgb, var(--down) 8%, transparent); }
 @media (max-width: 640px) { th.signals-col, td.signals-col { min-width: 180px; } }
+
+/* ---------- install as an app ---------- */
+.install-btn { flex-shrink: 0; color: var(--accent); white-space: nowrap; }
+.install-btn[hidden] { display: none; }
+@media (max-width: 480px) { .install-btn { font-size: 12px; } }
+/* installed app: keep the menu bar clear of the status bar and home indicator */
+@media (display-mode: standalone) {
+  .bar { padding-top: env(safe-area-inset-top); }
+  .wrap { padding-bottom: calc(48px + env(safe-area-inset-bottom)); }
+}

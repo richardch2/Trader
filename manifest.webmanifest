@@ -1,0 +1,22 @@
+{
+  "name": "Small Cap Tracker",
+  "short_name": "Small Caps",
+  "description": "Small-cap ETFs vs the S&P 500, daily picks and a watchlist, updated every trading day.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f4ef",
+  "theme_color": "#f6f4ef",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Picks", "url": "./#picks", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Watchlist", "url": "./#watchlist", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
