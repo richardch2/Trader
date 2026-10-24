@@ -38,6 +38,7 @@ scripts/av_client.py     shared Alpha Vantage client (rate limit + daily budget)
 scripts/fetchers/*.py    one file per kind of data (prices, smallcaps = Russell 2000 top gainers,
                          picks = technical signals)
 supabase/setup.sql       one-time database setup for the hosted watchlist
+supabase/push.sql        one-time setup for notifications; supabase/functions/notify-picks sends them
 data/                    fetcher output, committed by the workflow
 .github/workflows/       daily "Update data" job
 ```
@@ -103,6 +104,24 @@ which the fetcher detected and recorded as `"backfill": false`; set it back to `
 
 If you set up the hosted watchlist before the Picks page existed, run `supabase/allow-picks-source.sql` once in
 the SQL Editor so stocks can be added from it.
+
+## Notifications for new picks
+
+Tap **🔔 Notify me** on the Picks page to get a notification when the daily update brings stocks that weren't
+picks the day before. It needs a sign-in (any email) and, on iPhone and iPad, the installed app (iOS 16.4+).
+**Send test** checks the whole path to your device; **Turn off** stops it on that device.
+
+How it works: the browser subscribes with the standard Web Push API and saves the subscription in Supabase.
+Every 15 minutes `pg_cron` calls the `notify-picks` Edge Function, which reads `data/picks.json` from GitHub and
+sends a notification only when the file's date is newer than the last one it handled, so it never sends twice.
+Its signing keys are generated on its first run and stay in the database; nothing is stored in GitHub.
+
+One-time setup (until it's done the Notify button stays hidden):
+
+1. **SQL Editor:** paste `supabase/push.sql`, replace `YOUR-PROJECT` and `YOUR-ANON-KEY`, and **Run**.
+2. **Edge Functions → Deploy a new function:** name it `notify-picks` and paste
+   `supabase/functions/notify-picks/index.ts` (or `supabase functions deploy notify-picks` with the CLI).
+3. Wait for the next 15-minute run (or call the function once) so it creates its keys.
 
 ## Common changes (config only)
 

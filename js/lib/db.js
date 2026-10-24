@@ -80,6 +80,30 @@ export async function connect(settings) {
       const { error } = await client.from("watchlist").update({ note: note || null }).eq("symbol", symbol);
       if (error) fail(error);
     },
+
+    // ---------- push notifications (supabase/push.sql) ----------
+    /** The sender's public key, or null if notifications aren't set up. */
+    async pushKey() {
+      const { data, error } = await client.rpc("push_public_key");
+      return error ? null : data;
+    },
+    /** Save this device's subscription ({endpoint, keys: {p256dh, auth}}) for the signed-in person. */
+    async savePush(sub) {
+      const { error } = await client.from("push_subscriptions")
+        .upsert({ endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, user_id: session.user.id });
+      if (error) fail(error);
+    },
+    async removePush(endpoint) {
+      const { error } = await client.from("push_subscriptions").delete().eq("endpoint", endpoint);
+      if (error) fail(error);
+    },
+    /** Ask the server to send a test notification to the signed-in person's devices. */
+    async testPush() {
+      const { data, error } = await client.functions.invoke("notify-picks", { body: { test: true } });
+      if (error) fail(error);
+      if (data?.error) fail({ message: data.error });
+      return data;
+    },
   };
 }
 
@@ -91,5 +115,6 @@ function disabled(reason = null) {
     canEdit: false,
     onAuthChange() {},
     async list() { return []; },
+    async pushKey() { return null; },
   };
 }
