@@ -97,9 +97,9 @@ mechanical signals, not advice. Thresholds are constants at the top of the file.
 
 Watchlist and index stocks use their full price history from `data/prices.json`. For the rest, the fetcher keeps
 60 days of Russell 2000 closes in `data/picks-history.json` (about 800 KB, not loaded by the page), one day per
-iShares holdings file. While that history is short it downloads older holdings files, 30 a run, so picks start
-after the first run or two. If iShares stops serving older files, history builds one day per run instead and picks
-start after 21 trading days.
+iShares holdings file, so history builds one trading day per run: picks start after 21 trading days, and the
+50-day signals after about 53. iShares doesn't serve older holdings files (it answers every date with the latest),
+which the fetcher detected and recorded as `"backfill": false`; set it back to `true` to try again.
 
 If you set up the hosted watchlist before the Picks page existed, run `supabase/allow-picks-source.sql` once in
 the SQL Editor so stocks can be added from it.
