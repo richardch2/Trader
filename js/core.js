@@ -145,6 +145,46 @@ export function cardHead(el, title, note) {
   return { head, title: h2, note: left.querySelector(".note"), tools: right };
 }
 
+/**
+ * "Sign in" link that opens a small email form for a one-time sign-in link. Used
+ * where signing in is needed (notifications, adding stocks) instead of the menu bar.
+ */
+export function signInButton(ctx, label = "Sign in") {
+  const box = h("div", "signin");
+  const btn = h("button", "link-btn", label);
+  const panel = h("div", "signin-panel");
+  panel.hidden = true;
+  const input = h("input");
+  Object.assign(input, { type: "email", placeholder: "you@example.com", autocomplete: "email", required: true });
+  input.setAttribute("aria-label", "Email");
+  const send = h("button", "btn", "Email me a link");
+  const msg = h("p", "signin-msg", "We'll email you a one-time sign-in link. It signs in whichever device you open it on.");
+  const submit = async () => {
+    if (!input.value || !input.checkValidity()) { msg.textContent = "Enter a valid email."; return; }
+    send.disabled = true;
+    msg.textContent = "Sending…";
+    try {
+      await ctx.db.signIn(input.value.trim());
+      msg.textContent = "Check your email and tap the link to sign in.";
+    } catch (e) {
+      msg.textContent = /after \d+ seconds|rate limit/i.test(e.message)
+        ? "Too many requests. Wait a minute, then try again." : e.message;
+    } finally { send.disabled = false; }
+  };
+  send.addEventListener("click", submit);
+  input.addEventListener("keydown", (e) => e.key === "Enter" && submit());
+  btn.addEventListener("click", () => { panel.hidden = !panel.hidden; if (!panel.hidden) input.focus(); });
+  // close when clicking elsewhere; the listener goes once the control leaves the page
+  const close = (e) => {
+    if (!box.isConnected) document.removeEventListener("click", close);
+    else if (!box.contains(e.target)) panel.hidden = true;
+  };
+  document.addEventListener("click", close);
+  panel.append(input, send, msg);
+  box.append(btn, panel);
+  return box;
+}
+
 /** Shorthand for creating an HTML element with a class and text. */
 export function h(tag, cls, text) {
   const n = document.createElement(tag);
@@ -181,7 +221,7 @@ export function addCell(ctx, item, source) {
     });
     td.append(b);
   } else {
-    td.append(h("span", "muted small-text", ctx.db.email ? "View only" : "Sign in to add"));
+    td.append(h("span", "muted small-text", ctx.db.email ? "View only" : "Sign in on Watchlist to add"));
   }
   return td;
 }

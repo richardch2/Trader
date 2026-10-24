@@ -1,7 +1,7 @@
 // Add any ticker to the hosted watchlist by hand, with suggestions from the
 // Russell 2000 list and an optional note. Hidden when no database is set up.
 // Options: title, note
-import { cardHead, h } from "../core.js";
+import { cardHead, h, signInButton } from "../core.js";
 
 const SYMBOL = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
@@ -26,9 +26,8 @@ export default function addticker(opts, ctx) {
       form.replaceChildren();
       hint.textContent = "";
       if (!ctx.db.canEdit) {
-        form.append(h("p", "card-empty", ctx.db.email
-          ? `Signed in as ${ctx.db.email}, which isn't on the editors list.`
-          : "Sign in (top right) to add stocks."));
+        if (ctx.db.email) form.append(h("p", "card-empty", `Signed in as ${ctx.db.email}, which isn't on the editors list.`));
+        else form.append(signInButton(ctx, "Sign in to add stocks"));
         return;
       }
 

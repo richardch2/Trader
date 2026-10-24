@@ -2,7 +2,7 @@
 // score, the signals behind it, and a button to add it to the hosted watchlist.
 // Options: title, note, list ("picks" default, "cautions", "watchlist" or "tickers"), count,
 // notify (default true on the picks list: the "Notify me" control for new picks)
-import { cardHead, h, addCell } from "../core.js";
+import { cardHead, h, addCell, signInButton } from "../core.js";
 import { pct, money, tone, date } from "../lib/format.js";
 import { pushState, enablePush, disablePush } from "../lib/push.js";
 
@@ -124,9 +124,10 @@ export default function picks(opts, ctx) {
           draw();
         });
         box.append(h("span", "watching", "🔔 Notifications on"), test, off);
+      } else if (state === "signin") {
+        box.append(signInButton(ctx, "🔔 Sign in for notifications"));
       } else if (state !== "unavailable") {
         box.append(h("span", "muted small-text", {
-          signin: "Sign in to get notifications",
           denied: "Notifications blocked in Settings",
           install: "Install the app to get notifications",
         }[state]));

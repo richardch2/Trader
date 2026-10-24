@@ -46,7 +46,7 @@ async function boot() {
   buildMenu();
   buildRanges();
   renderAccount();
-  if (db.linkError) toast(`Sign-in link didn't work: ${db.linkError}. Request a new one from Sign in.`, true);
+  if (db.linkError) toast(`Sign-in link didn't work: ${db.linkError}. Request a new one from Sign in on the Picks or Watchlist page.`, true);
   else if (db.email && sessionStorage.getItem("welcomed") !== db.email) {
     try { sessionStorage.setItem("welcomed", db.email); } catch {}
     toast(db.canEdit ? `Signed in as ${db.email}.` : `Signed in as ${db.email} (view only).`);
@@ -91,49 +91,15 @@ async function buildContext() {
   ctx.canRemove = (sym) => db.canEdit && ctx.watchlist.some((w) => w.symbol === sym && w.hosted);
 }
 
-// ---------- account (sign in / out) ----------
+// ---------- account (who's signed in, in the footer; sign-in lives on the cards that need it) ----------
 function renderAccount() {
   const box = $("#account");
   box.replaceChildren();
-  if (!db.enabled) return;
-  if (db.email) {
-    const who = h("span", "account-who", db.email.split("@")[0]);
-    who.title = db.email + (db.canEdit ? "" : " (view only: not in the editors list)");
-    if (!db.canEdit) who.append(h("span", "muted", " · view only"));
-    const out = h("button", "link-btn", "Sign out");
-    out.addEventListener("click", () => db.signOut());
-    box.append(who, out);
-    return;
-  }
-  const btn = h("button", "link-btn", "Sign in");
-  const panel = h("div", "account-panel");
-  panel.hidden = true;
-  const input = h("input");
-  Object.assign(input, { type: "email", placeholder: "you@example.com", autocomplete: "email", required: true });
-  input.setAttribute("aria-label", "Email");
-  const send = h("button", "btn", "Email me a link");
-  const msg = h("p", "account-msg", "We'll email you a one-time sign-in link. It signs in whichever device you open it on.");
-  const submit = async () => {
-    if (!input.value || !input.checkValidity()) { msg.textContent = "Enter a valid email."; return; }
-    send.disabled = true;
-    msg.textContent = "Sending…";
-    try {
-      await db.signIn(input.value.trim());
-      msg.textContent = "Check your email and tap the link to sign in.";
-    } catch (e) {
-      msg.textContent = /after \d+ seconds|rate limit/i.test(e.message)
-        ? "Too many requests. Wait a minute, then try again." : e.message;
-    } finally { send.disabled = false; }
-  };
-  send.addEventListener("click", submit);
-  input.addEventListener("keydown", (e) => e.key === "Enter" && submit());
-  btn.addEventListener("click", () => { panel.hidden = !panel.hidden; if (!panel.hidden) input.focus(); });
-  if (!renderAccount.bound) {   // close the sign-in panel when clicking elsewhere (bound once)
-    renderAccount.bound = true;
-    document.addEventListener("click", (e) => { const p = $("#account .account-panel"); if (p && !$("#account").contains(e.target)) p.hidden = true; });
-  }
-  panel.append(input, send, msg);
-  box.append(btn, panel);
+  if (!db.enabled || !db.email) return;
+  const who = h("span", "account-who", `Signed in as ${db.email}${db.canEdit ? "" : " (view only)"}.`);
+  const out = h("button", "link-btn", "Sign out");
+  out.addEventListener("click", () => db.signOut());
+  box.append(who, " ", out);
 }
 
 let toastTimer;

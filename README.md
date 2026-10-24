@@ -64,7 +64,7 @@ buttons are hidden.
    "supabase": { "url": "https://xxxx.supabase.co", "anonKey": "eyJ…" }
    ```
    The anon key is meant to be public; the database rules decide who can write.
-5. Open the site, **Sign in** (top right), and use the emailed link.
+5. Open the site, tap **Sign in to add stocks** on the Watchlist page, and use the emailed link.
 
 The daily job reads the hosted list too, so stocks you add get price history from the next run. The list is
 capped at 15 stocks to stay within the free API budget.

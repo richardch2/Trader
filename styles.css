@@ -209,16 +209,20 @@ th.note-col, td.note-col { text-align: left; white-space: normal; min-width: 160
 .small-text { font-size: 12px; white-space: nowrap; }
 .card-tools { display: flex; align-items: center; gap: 12px; }
 
-/* ---------- account in the menu bar ---------- */
-.account { margin-left: auto; position: relative; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.account-who { font-size: 13px; max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-panel {
-  position: absolute; right: 0; top: calc(100% + 14px); width: min(300px, calc(100vw - 32px));
+/* ---------- sign in (on the cards that need it) and who's signed in (footer) ---------- */
+.install-btn { margin-left: auto; }
+.foot .account { display: block; margin-top: 6px; }
+.foot .account .link-btn { font-size: 12px; }
+.signin { position: relative; }
+.add-form .signin { grid-column: 1 / -1; }
+.signin-panel {
+  position: absolute; right: 0; top: calc(100% + 10px); width: min(300px, calc(100vw - 32px));
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
   box-shadow: 0 8px 28px rgba(0,0,0,.14); display: grid; gap: 8px; z-index: 20;
 }
-.account-panel[hidden] { display: none; }
-.account-msg { margin: 0; font-size: 12px; color: var(--muted); }
+.add-form .signin-panel { right: auto; left: 0; }
+.signin-panel[hidden] { display: none; }
+.signin-msg { margin: 0; font-size: 12px; color: var(--muted); }
 input {
   font: 14px var(--sans); color: var(--fg); background: var(--bg);
   border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0;
@@ -251,11 +255,10 @@ th.action, td.action { width: 1%; text-align: right; }
 
 /* text columns in the top 10 read left to right */
 td.left, th.left { text-align: left; }
-/* menu scrolls instead of running under the account area */
+/* menu scrolls instead of running under the install button */
 .menu { flex: 0 1 auto; min-width: 0; margin-right: 0; padding-right: 0; }
 @media (max-width: 560px) {
   .brand { display: none; }
-  .account-who { display: none; }
   .bar-inner { gap: 8px; }
 }
 
