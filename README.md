@@ -14,7 +14,7 @@ A static page that tracks small-cap ETFs against the S&P 500, hosted on GitHub P
    *Settings → Secrets and variables → Actions → New repository secret*, name it `ALPHAVANTAGE_API_KEY`.
 2. **Pages** — *Settings → Pages → Build and deployment*: Source **Deploy from a branch**, branch **main**, folder **/ (root)**.
 3. **First data** — *Actions → Update prices → Run workflow*. When it finishes, the site is live at
-   `https://richardch2.github.io/trader/`.
+   `https://richardch2.github.io/Trader/`.
 
 After that the workflow runs Mon–Fri at about 6:20pm Eastern.
 
