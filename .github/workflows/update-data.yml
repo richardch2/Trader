@@ -5,6 +5,11 @@ on:
     # 6:20pm US Eastern (22:20 UTC in summer, 23:20 in winter), Mon–Fri
     - cron: "20 22 * * 1-5"
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Run only these fetchers (space-separated, e.g. smallcaps). Leave empty for all."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -26,7 +31,8 @@ jobs:
       - name: Fetch data
         env:
           ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
-        run: python scripts/update.py
+          ONLY: ${{ inputs.only }}
+        run: python scripts/update.py $ONLY
 
       - name: Commit data
         run: |

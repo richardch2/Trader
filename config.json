@@ -56,6 +56,10 @@
     {
       "name": "prices",
       "enabled": true
+    },
+    {
+      "name": "smallcaps",
+      "enabled": true
     }
   ],
   "pages": [
