@@ -20,6 +20,13 @@ from av_client import AlphaVantage  # noqa: E402
 DATA = ROOT / "data"
 
 
+def report(msg: str, level: str = "error") -> None:
+    """Print a problem; on GitHub Actions it also shows as an annotation on the run."""
+    if os.environ.get("GITHUB_ACTIONS"):
+        print(f"::{level}::{msg}")
+    print(f"! {msg}", file=sys.stderr)
+
+
 def main(argv) -> int:
     key = os.environ.get("ALPHAVANTAGE_API_KEY")
     if not key:
@@ -43,11 +50,11 @@ def main(argv) -> int:
         try:
             result = importlib.import_module(f"fetchers.{name}").run(config, client, previous)
         except Exception as e:
-            print(f"! {name} failed: {e}", file=sys.stderr)
+            report(f"{name} failed: {type(e).__name__}: {e}")
             continue
         result["updated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         for msg in result.get("failures", []):
-            print(f"! {name} {msg}", file=sys.stderr)
+            report(f"{name} {msg}", level="warning")
         out.write_text(json.dumps(result, separators=(",", ":")))
         ok += 1
 
