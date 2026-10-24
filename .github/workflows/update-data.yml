@@ -1,4 +1,4 @@
-name: Update prices
+name: Update data
 
 on:
   schedule:
@@ -23,19 +23,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Fetch prices
+      - name: Fetch data
         env:
           ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
-        run: python scripts/fetch_prices.py
+        run: python scripts/update.py
 
       - name: Commit data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/prices.json
+          git add data/
           if git diff --cached --quiet; then
             echo "No changes"
           else
-            git commit -m "Update prices $(date -u +%Y-%m-%d)"
+            git commit -m "Update data $(date -u +%Y-%m-%d)"
             git push
           fi

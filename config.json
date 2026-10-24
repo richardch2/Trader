@@ -1,0 +1,37 @@
+{
+  "title": "Small cap tracker",
+  "primary": "IWM",
+  "benchmark": "SPY",
+  "defaultRange": "3M",
+
+  "api": {
+    "provider": "alphavantage",
+    "dailyBudget": 25,
+    "minIntervalSeconds": 13
+  },
+
+  "tickers": [
+    { "symbol": "IWM",  "name": "iShares Russell 2000",        "group": "Index" },
+    { "symbol": "IJR",  "name": "iShares Core S&P Small-Cap",  "group": "Index" },
+    { "symbol": "VB",   "name": "Vanguard Small-Cap",          "group": "Index" },
+    { "symbol": "VTWO", "name": "Vanguard Russell 2000",       "group": "Index" },
+    { "symbol": "SCHA", "name": "Schwab U.S. Small-Cap",       "group": "Index" },
+    { "symbol": "IWN",  "name": "iShares Russell 2000 Value",  "group": "Style" },
+    { "symbol": "IWO",  "name": "iShares Russell 2000 Growth", "group": "Style" },
+    { "symbol": "SPY",  "name": "SPDR S&P 500 (large-cap)",    "group": "Benchmark" }
+  ],
+
+  "fetchers": [
+    { "name": "prices", "enabled": true }
+  ],
+
+  "cards": [
+    { "type": "headline" },
+    { "type": "performance", "width": "full", "title": "Performance" },
+    { "type": "spread", "width": "half", "title": "Small vs large", "a": "IWM", "b": "SPY" },
+    { "type": "pair", "width": "half", "title": "Value vs growth",
+      "note": "Russell 2000 value (IWN) against growth (IWO).",
+      "series": [ { "symbol": "IWN", "label": "Value" }, { "symbol": "IWO", "label": "Growth" } ] },
+    { "type": "table", "width": "full", "title": "All tickers" }
+  ]
+}

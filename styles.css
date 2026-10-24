@@ -60,7 +60,7 @@ body {
 }
 .card h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .note { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
-.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
 
 .ranges { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .ranges button {
@@ -86,9 +86,15 @@ body {
 .swatch { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
 .swatch.dash { background: repeating-linear-gradient(90deg, var(--bench) 0 4px, transparent 4px 7px) !important; }
 
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
-.grid .card { margin-bottom: 0; }
-.grid + .card { margin-top: 16px; }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.cards .card { margin-bottom: 0; }
+.span-full { grid-column: 1 / -1; }
+@media (max-width: 720px) { .cards { grid-template-columns: minmax(0, 1fr); } }
+.card-head h2 + .note, .card-head .note { margin-top: 2px; }
+.card-tools:empty { display: none; }
+.card-error { margin: 0; color: var(--down); font-size: 13px; }
+.top-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+@media (max-width: 640px) { .top-right { align-items: flex-start; } }
 .big { margin: 12px 0 8px; font: 400 32px/1 var(--serif); font-variant-numeric: tabular-nums; }
 .big small { font: 13px var(--sans); color: var(--muted); margin-left: 6px; }
 
