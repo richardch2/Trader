@@ -1,35 +1,28 @@
 // Add any ticker to the hosted watchlist by hand, with suggestions from the
 // Russell 2000 list and an optional note. Hidden when no database is set up.
 // Options: title, note
-import { cardHead, h, signInButton } from "../core.js";
+import { cardHead, h } from "../core.js";
 
 const SYMBOL = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 
 export default function addticker(opts, ctx) {
   const members = ctx.data.smallcaps?.members || {};
-  let form, hint, builtFor = null;
+  let form, hint, built = false;
 
   return {
     mount(el) {
       if (!ctx.db.enabled) { el.hidden = true; return; }
       cardHead(el, opts.title || "Add a ticker", opts.note || "Type a symbol or company name. Russell 2000 stocks are suggested; any US ticker works.");
       form = h("div", "add-form");
+      built = false;
       hint = h("p", "add-hint");
       el.append(form, hint);
     },
     render(el) {
       if (!ctx.db.enabled) return;
-      // rebuild only when sign-in changes, so typing survives redraws
-      const key = `${ctx.db.email}|${ctx.db.canEdit}`;
-      if (builtFor === key) return;
-      builtFor = key;
-      form.replaceChildren();
-      hint.textContent = "";
-      if (!ctx.db.canEdit) {
-        if (ctx.db.email) form.append(h("p", "card-empty", `Signed in as ${ctx.db.email}, which isn't on the editors list.`));
-        else form.append(signInButton(ctx, "Sign in to add stocks"));
-        return;
-      }
+      // build once, so typing survives redraws
+      if (built) return;
+      built = true;
 
       const listId = "r2k-symbols";
       let dl = document.getElementById(listId);

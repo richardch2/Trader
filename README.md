@@ -56,15 +56,16 @@ Until this is set up the site still works; the watchlist then comes only from `c
 buttons are hidden.
 
 1. Create a free project at <https://supabase.com> (any name and region).
-2. **SQL Editor → New query:** paste `supabase/setup.sql`, change `you@example.com` to your email, and **Run**.
-   Only emails in the `editors` table can change the list; anyone can view it.
+2. **SQL Editor → New query:** paste `supabase/setup.sql` and **Run**.
+   Anyone with the site can view and change the list, no sign-in needed. It's capped at 15 stocks and
+   10 additions a day so a stranger can't flood it.
 3. **Authentication → URL Configuration:** set *Site URL* to `https://richardch2.github.io/Trader/`.
 4. **Project Settings → API:** copy the *Project URL* and the *anon public* key into `config.json`:
    ```json
    "supabase": { "url": "https://xxxx.supabase.co", "anonKey": "eyJ…" }
    ```
    The anon key is meant to be public; the database rules decide who can write.
-5. Open the site, tap **Sign in to add stocks** on the Watchlist page, and use the emailed link.
+5. Open the site and add stocks from the Watchlist page or the Top 10.
 
 The daily job reads the hosted list too, so stocks you add get price history from the next run. The list is
 capped at 15 stocks to stay within the free API budget.

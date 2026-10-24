@@ -214,13 +214,11 @@ th.note-col, td.note-col { text-align: left; white-space: normal; min-width: 160
 .foot .account { display: block; margin-top: 6px; }
 .foot .account .link-btn { font-size: 12px; }
 .signin { position: relative; }
-.add-form .signin { grid-column: 1 / -1; }
 .signin-panel {
   position: absolute; right: 0; top: calc(100% + 10px); width: min(300px, calc(100vw - 32px));
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
   box-shadow: 0 8px 28px rgba(0,0,0,.14); display: grid; gap: 8px; z-index: 20;
 }
-.add-form .signin-panel { right: auto; left: 0; }
 .signin-panel[hidden] { display: none; }
 .signin-msg { margin: 0; font-size: 12px; color: var(--muted); }
 input {

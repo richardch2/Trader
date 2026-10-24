@@ -147,7 +147,7 @@ export function cardHead(el, title, note) {
 
 /**
  * "Sign in" link that opens a small email form for a one-time sign-in link. Used
- * where signing in is needed (notifications, adding stocks) instead of the menu bar.
+ * where signing in is needed (notifications) instead of the menu bar.
  */
 export function signInButton(ctx, label = "Sign in") {
   const box = h("div", "signin");
@@ -205,8 +205,8 @@ export function editLink(ctx, label = "Edit list") {
 }
 
 /**
- * Table cell with "+ Add" to the hosted watchlist, "✓ Watching" if already there, or a
- * sign-in hint. item: {symbol, name}; source says where it was added from.
+ * Table cell with "+ Add" to the hosted watchlist, or "✓ Watching" if already there.
+ * Empty when there's no hosted watchlist. item: {symbol, name}; source says where it was added from.
  */
 export function addCell(ctx, item, source) {
   const td = h("td", "action");
@@ -220,8 +220,6 @@ export function addCell(ctx, item, source) {
       catch (e) { ctx.toast(e.message, true); b.disabled = false; b.textContent = "+ Add"; }
     });
     td.append(b);
-  } else {
-    td.append(h("span", "muted small-text", ctx.db.email ? "View only" : "Sign in on Watchlist to add"));
   }
   return td;
 }

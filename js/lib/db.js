@@ -2,8 +2,8 @@
 // settings in config.json the site falls back to the watchlist in config.json
 // and hides the sign-in and Add buttons.
 //
-// Reading is public; adding and removing need an email sign-in by someone in the
-// editors table (see supabase/setup.sql).
+// Anyone can read and change the watchlist (see supabase/setup.sql). Signing in is
+// only needed for notifications, which are kept per person.
 
 const CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
@@ -24,21 +24,12 @@ export async function connect(settings) {
   const linkError = returned.get("error_description");
   let session = (await client.auth.getSession()).data.session;
   if (returned.has("access_token") || returned.has("error")) history.replaceState(null, "", location.pathname + location.search + "#overview");
-  let editor = session ? await checkEditor() : false;
   const listeners = new Set();
-
-  async function checkEditor() {
-    const { data, error } = await client.rpc("is_editor");
-    return !error && data === true;
-  }
 
   client.auth.onAuthStateChange(async (_event, s) => {
     const changed = (s?.user?.id || null) !== (session?.user?.id || null);
     session = s;
-    if (changed) {
-      editor = s ? await checkEditor() : false;
-      listeners.forEach((fn) => fn());
-    }
+    if (changed) listeners.forEach((fn) => fn());
   });
 
   const fail = (error) => { throw new Error(error.message || String(error)); };
@@ -48,8 +39,8 @@ export async function connect(settings) {
     /** Set when the page was opened from a sign-in link that didn't work. */
     linkError: linkError ? linkError.replace(/\+/g, " ") : null,
     get email() { return session?.user?.email || null; },
-    /** Signed in and allowed to change the list. */
-    get canEdit() { return editor; },
+    /** Anyone can change the list. */
+    get canEdit() { return true; },
     onAuthChange(fn) { listeners.add(fn); },
 
     /** Email a one-time sign-in link that returns to this page. */

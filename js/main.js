@@ -46,10 +46,10 @@ async function boot() {
   buildMenu();
   buildRanges();
   renderAccount();
-  if (db.linkError) toast(`Sign-in link didn't work: ${db.linkError}. Request a new one from Sign in on the Picks or Watchlist page.`, true);
+  if (db.linkError) toast(`Sign-in link didn't work: ${db.linkError}. Request a new one from Sign in on the Picks page.`, true);
   else if (db.email && sessionStorage.getItem("welcomed") !== db.email) {
     try { sessionStorage.setItem("welcomed", db.email); } catch {}
-    toast(db.canEdit ? `Signed in as ${db.email}.` : `Signed in as ${db.email} (view only).`);
+    toast(`Signed in as ${db.email}.`);
   }
   db.onAuthChange(() => { renderAccount(); route(); });
   addEventListener("hashchange", route);
@@ -96,7 +96,7 @@ function renderAccount() {
   const box = $("#account");
   box.replaceChildren();
   if (!db.enabled || !db.email) return;
-  const who = h("span", "account-who", `Signed in as ${db.email}${db.canEdit ? "" : " (view only)"}.`);
+  const who = h("span", "account-who", `Signed in as ${db.email}.`);
   const out = h("button", "link-btn", "Sign out");
   out.addEventListener("click", () => db.signOut());
   box.append(who, " ", out);
