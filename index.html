@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Small Cap Tracker</title>
+  <meta name="description" content="Small-cap ETFs vs the S&P 500, updated every trading day.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Small cap tracker</p>
+        <h1 id="headline" class="headline">Loading prices…</h1>
+      </div>
+      <p id="updated" class="updated"></p>
+    </header>
+
+    <section id="empty" class="empty" hidden>
+      <h2>No price data yet</h2>
+      <p>Add your Alpha Vantage key as the repository secret <code>ALPHAVANTAGE_API_KEY</code>, then run the
+        <b>Update prices</b> workflow from the Actions tab. The page fills in once it finishes.</p>
+    </section>
+
+    <div id="content" hidden>
+      <section class="card" id="performance">
+        <div class="card-head">
+          <div>
+            <h2>Performance</h2>
+            <p class="note">Change since the start of the period. SPY dashed for comparison; tap a ticker to hide it.</p>
+          </div>
+          <div class="ranges" id="ranges" role="group" aria-label="Period"></div>
+        </div>
+        <div class="chart" id="main-chart"></div>
+        <div class="legend" id="legend"></div>
+      </section>
+
+      <div class="grid">
+        <section class="card" id="spread-card">
+          <h2>Small vs large</h2>
+          <p class="note">IWM return minus SPY return, in percentage points.</p>
+          <p class="big" id="spread-value">—</p>
+          <div class="chart small" id="spread-chart"></div>
+        </section>
+        <section class="card" id="style-card">
+          <h2>Value vs growth</h2>
+          <p class="note">Russell 2000 value (IWN) against growth (IWO).</p>
+          <p class="big" id="style-value">—</p>
+          <div class="chart small" id="style-chart"></div>
+        </section>
+      </div>
+
+      <section class="card" id="table-card">
+        <h2>All tickers</h2>
+        <p class="note">Returns over trading days. Tap a column to sort.</p>
+        <div class="table-wrap">
+          <table id="table">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <footer class="foot">
+      Prices from Alpha Vantage, refreshed after each US market close. Not investment advice.
+      <span id="failures"></span>
+    </footer>
+  </main>
+  <div class="tip" id="tip" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>
