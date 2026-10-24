@@ -6,8 +6,11 @@ trading day by a GitHub Action. Live at **<https://richardch2.github.io/Trader/>
 Everything is driven by `config.json`: which tickers to track, the watchlist, the pages in the menu and the
 cards on each, and which data fetchers run each day.
 
-**Pages:** Overview (`#overview`), Watchlist (`#watchlist`), and a detail page for any ticker (`#ticker/IWM`),
-opened by tapping a row or a mover.
+**Pages:** Overview (`#overview`), Top 10 (`#top10`, the day's biggest Russell 2000 gainers), Watchlist
+(`#watchlist`), and a detail page for any ticker (`#ticker/IWM`), opened by tapping a row or a mover.
+
+Stocks are added to the watchlist from the site itself (Add buttons on the Top 10, an Add-a-ticker box, and
+each ticker's page), stored in a free Supabase database with email sign-in. See *Hosted watchlist* below.
 
 ## Layout
 
@@ -16,11 +19,12 @@ config.json              tickers, watchlist, pages + cards, fetchers, API limits
 index.html, styles.css   page shell and styles
 js/main.js               loads config + data, builds the menu, mounts the current page's cards
 js/core.js               the `ctx` every card gets: data helpers and shared state
-js/lib/                  formatting and chart helpers
+js/lib/                  formatting and chart helpers; db.js talks to the hosted watchlist
 js/cards/*.js            one file per card type
 scripts/update.py        runs every enabled fetcher, writes data/<name>.json
 scripts/av_client.py     shared Alpha Vantage client (rate limit + daily budget)
-scripts/fetchers/*.py    one file per kind of data
+scripts/fetchers/*.py    one file per kind of data (prices, smallcaps = Russell 2000 top gainers)
+supabase/setup.sql       one-time database setup for the hosted watchlist
 data/                    fetcher output, committed by the workflow
 .github/workflows/       daily "Update data" job
 ```
@@ -32,11 +36,37 @@ data/                    fetcher output, committed by the workflow
 2. **Pages** — *Settings → Pages*: deploy from branch **main**, folder **/ (root)**.
 3. **Data** — *Actions → Update data → Run workflow*. After that it runs Mon–Fri around 6:20pm Eastern.
 
+## Hosted watchlist (Supabase)
+
+Until this is set up the site still works; the watchlist then comes only from `config.json` and the Add
+buttons are hidden.
+
+1. Create a free project at <https://supabase.com> (any name and region).
+2. **SQL Editor → New query:** paste `supabase/setup.sql`, change `you@example.com` to your email, and **Run**.
+   Only emails in the `editors` table can change the list; anyone can view it.
+3. **Authentication → URL Configuration:** set *Site URL* to `https://richardch2.github.io/Trader/`.
+4. **Project Settings → API:** copy the *Project URL* and the *anon public* key into `config.json`:
+   ```json
+   "supabase": { "url": "https://xxxx.supabase.co", "anonKey": "eyJ…" }
+   ```
+   The anon key is meant to be public; the database rules decide who can write.
+5. Open the site, **Sign in** (top right), and use the emailed link.
+
+The daily job reads the hosted list too, so stocks you add get price history from the next run. The list is
+capped at 15 stocks to stay within the free API budget.
+
+## Daily top 10
+
+`scripts/fetchers/smallcaps.py` downloads the iShares Russell 2000 ETF holdings file (every stock in the
+index with its last close), compares it with the previous run's prices, and keeps the 10 biggest gainers.
+It costs no Alpha Vantage calls. Stocks under $1 and moves over +200% (usually reverse splits) are skipped.
+iShares publishes the file a day after the close, so the list is labeled with the date it covers.
+
 ## Common changes (config only)
 
-**Watchlist** — add stocks to `watchlist`. `added` (the day you started watching) adds a "Since added"
-column; `note` shows beside it and on the stock's page. Both are optional. The **Edit list** link on the
-Watchlist page opens `config.json` on GitHub; prices for a new stock appear after the next daily update.
+**Watchlist in config.json** — besides the hosted list, stocks can be pinned in `watchlist`. `added` (the
+day you started watching) adds a "Since added" column; `note` shows beside it and on the stock's page.
+These can't be removed from the site.
 
 ```json
 "watchlist": [
@@ -73,7 +103,9 @@ you can write `$primary`, `$benchmark`, or `$route` (the ticker in the address, 
 | `pair` | `title`, `note`, `series: [{symbol, label}, {symbol, label}]` |
 | `table` | `title`, `note`, `list`, `columns: [{key, label, days}]`, `sparkDays`, `editable` (Edit list link) |
 | `movers` | `title`, `note`, `list` (default `watchlist`), `days` (1 = today), `count` per side |
-| `ticker` | `symbol` (default `$route`) — key figures and price chart for one ticker |
+| `ticker` | `symbol` (default `$route`) — key figures, price chart, and Add/Remove watchlist button |
+| `topgainers` | `title`, `note`, `count` (default 10) — the day's top Russell 2000 gainers with Add buttons |
+| `addticker` | `title`, `note` — add any ticker to the hosted watchlist, with Russell 2000 suggestions |
 
 For example, a second spread card for small-cap value against the S&P 500:
 
@@ -116,6 +148,8 @@ What a card gets in `ctx` (see `js/core.js`):
 - `ctx.config`, `ctx.tickers`, `ctx.watchlist`, `ctx.list(name)`, `ctx.primary`, `ctx.benchmark`, `ctx.dates`
 - `ctx.route` — `{page, arg}` for the current address; `ctx.resolve("$route")` gives the ticker on a ticker page
 - `ctx.href(sym)` — link to a ticker's page; `ctx.setHeading(text)` — set the page heading
+- `ctx.db` (`enabled`, `email`, `canEdit`), `ctx.onWatchlist(sym)`, `ctx.addToWatchlist({symbol, name, note})`,
+  `ctx.removeFromWatchlist(sym)`, `ctx.canRemove(sym)`, `ctx.toast(text)`
 - `ctx.data.<fetcher>` — the raw output of any fetcher, e.g. `ctx.data.prices.series.IWM["2026-10-23"].v`
 - `ctx.series(sym)`, `ctx.bars(sym)`, `ctx.lastClose(sym)`, `ctx.ret(sym, days)`, `ctx.retSince(sym, date)`, `ctx.has(sym)`
 - `ctx.window()`, `ctx.range()`, `ctx.rebased(sym)`, `ctx.spread(a, b)` — all follow the selected period
@@ -155,6 +189,6 @@ put the most important first. A paid key just needs a higher `dailyBudget` and l
 
 ```sh
 ALPHAVANTAGE_API_KEY=xxx python scripts/update.py          # all fetchers
-ALPHAVANTAGE_API_KEY=xxx python scripts/update.py prices   # just one
+ALPHAVANTAGE_API_KEY=xxx python scripts/update.py smallcaps   # just one
 python -m http.server 8000                                 # then open http://localhost:8000
 ```

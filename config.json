@@ -9,6 +9,10 @@
     "dailyBudget": 25,
     "minIntervalSeconds": 13
   },
+  "supabase": {
+    "url": "",
+    "anonKey": ""
+  },
   "tickers": [
     {
       "symbol": "IWM",
@@ -106,6 +110,22 @@
       ]
     },
     {
+      "id": "top10",
+      "title": "Top 10",
+      "heading": "Today's top small caps",
+      "ranges": false,
+      "cards": [
+        {
+          "type": "topgainers",
+          "width": "full"
+        },
+        {
+          "type": "addticker",
+          "width": "full"
+        }
+      ]
+    },
+    {
       "id": "watchlist",
       "title": "Watchlist",
       "heading": "Watchlist",
@@ -115,7 +135,6 @@
           "width": "full",
           "title": "Watchlist",
           "list": "watchlist",
-          "editable": true,
           "columns": [
             {
               "key": "d1",
@@ -132,7 +151,12 @@
               "label": "1M",
               "days": 21
             }
-          ]
+          ],
+          "note": "Tap a column to sort, a row for details. Add stocks below or from the Top 10."
+        },
+        {
+          "type": "addticker",
+          "width": "full"
         },
         {
           "type": "movers",

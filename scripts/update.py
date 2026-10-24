@@ -9,6 +9,7 @@ import importlib
 import json
 import os
 import sys
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,6 +28,26 @@ def report(msg: str, level: str = "error") -> None:
     print(f"! {msg}", file=sys.stderr)
 
 
+def merge_hosted_watchlist(config) -> list:
+    """Add stocks from the hosted (Supabase) watchlist to the ones in config.json."""
+    sb = config.get("supabase") or {}
+    static = config.get("watchlist", [])
+    if not sb.get("url") or not sb.get("anonKey"):
+        return static
+    url = sb["url"].rstrip("/") + "/rest/v1/watchlist?select=symbol,name&order=added"
+    req = urllib.request.Request(url, headers={"apikey": sb["anonKey"], "Authorization": f"Bearer {sb['anonKey']}"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            rows = json.load(r)
+    except Exception as e:
+        report(f"couldn't read the hosted watchlist, using config.json only: {e}", level="warning")
+        return static
+    known = {w["symbol"] for w in static}
+    merged = static + [{"symbol": r["symbol"], "name": r.get("name")} for r in rows if r["symbol"] not in known]
+    print(f"watchlist: {len(rows)} hosted, {len(static)} in config.json, {len(merged)} total")
+    return merged
+
+
 def main(argv) -> int:
     key = os.environ.get("ALPHAVANTAGE_API_KEY")
     if not key:
@@ -34,6 +55,7 @@ def main(argv) -> int:
         return 1
 
     config = json.loads((ROOT / "config.json").read_text())
+    config["watchlist"] = merge_hosted_watchlist(config)
     api = config.get("api", {})
     client = AlphaVantage(key, api.get("dailyBudget", 25), api.get("minIntervalSeconds", 13))
 

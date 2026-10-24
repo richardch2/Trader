@@ -33,6 +33,8 @@ export default function table(opts, ctx) {
     ...(hasAdded ? [{ key: "since", label: "Since added" }] : []),
     { key: "spark", label: "Trend", cls: "hide-sm", nosort: true },
     ...(hasNote ? [{ key: "note", label: "Note", text: true, cls: "hide-sm note-col" }] : []),
+    // Remove buttons, for hosted watchlist entries when signed in as an editor
+    ...(opts.list === "watchlist" && items.some((t) => ctx.canRemove?.(t.symbol)) ? [{ key: "remove", label: "", nosort: true, cls: "action" }] : []),
   ];
 
   return {
@@ -49,7 +51,7 @@ export default function table(opts, ctx) {
       tbl.append(document.createElement("thead"), document.createElement("tbody"));
       tbl.addEventListener("click", (ev) => {
         const row = ev.target.closest("tr[data-sym]");
-        if (row && !ev.target.closest("a")) location.hash = ctx.href(row.dataset.sym);
+        if (row && !ev.target.closest("a, button")) location.hash = ctx.href(row.dataset.sym);
       });
       wrap.append(tbl);
       el.append(empty, wrap);
@@ -99,7 +101,7 @@ export default function table(opts, ctx) {
         if (!ctx.has(r.sym)) {
           // on the list but not fetched yet
           const wait = h("td", "waiting", "Waiting for the next daily update");
-          wait.colSpan = cols.length - 2 - (hasNote ? 1 : 0);
+          wait.colSpan = cols.length - 2 - (hasNote ? 1 : 0) - (cols.at(-1).key === "remove" ? 1 : 0);
           row.append(wait);
         } else {
           row.append(h("td", null, money(r.price)));
@@ -114,6 +116,21 @@ export default function table(opts, ctx) {
           row.append(sp);
         }
         if (hasNote) row.append(h("td", "note-col hide-sm", r.note));
+        if (cols.at(-1).key === "remove") {
+          const td = h("td", "action");
+          if (ctx.canRemove(r.sym)) {
+            const b = h("button", "btn small ghost", "Remove");
+            b.title = `Remove ${r.sym} from the watchlist`;
+            b.addEventListener("click", async () => {
+              if (!confirm(`Remove ${r.sym} from the watchlist?`)) return;
+              b.disabled = true;
+              try { await ctx.removeFromWatchlist(r.sym); }
+              catch (e) { ctx.toast(e.message, true); b.disabled = false; }
+            });
+            td.append(b);
+          }
+          row.append(td);
+        }
         return row;
       }));
     },

@@ -4,14 +4,16 @@
 // own box and the rest of the page carries on.
 import { createContext, RANGES, h } from "./core.js";
 import { longDate } from "./lib/format.js";
+import { connect } from "./lib/db.js";
 
 const $ = (s) => document.querySelector(s);
 const getJSON = (url) => fetch(url, { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
 const modules = {};
 let ctx, pages, mounted = [];
+let config, datasets, db, staticWatchlist;
 
 async function boot() {
-  const config = await getJSON("config.json");
+  config = await getJSON("config.json");
   if (!config) return ($("#headline").textContent = "Couldn't read config.json.");
   const title = config.title || "";
   document.title = title.replace(/^./, (c) => c.toUpperCase());
@@ -21,8 +23,13 @@ async function boot() {
   pages = config.pages || [{ id: "overview", title: "Overview", cards: config.cards || [] }];
 
   const fetchers = (config.fetchers || []).filter((f) => f.enabled !== false);
-  const loaded = await Promise.all(fetchers.map((f) => getJSON(`data/${f.name}.json`)));
-  const datasets = Object.fromEntries(fetchers.map((f, i) => [f.name, loaded[i]]));
+  const [loaded, database] = await Promise.all([
+    Promise.all(fetchers.map((f) => getJSON(`data/${f.name}.json`))),
+    connect(config.supabase),
+  ]);
+  datasets = Object.fromEntries(fetchers.map((f, i) => [f.name, loaded[i]]));
+  db = database;
+  staticWatchlist = config.watchlist || [];
 
   const hasPrices = Object.values(datasets.prices?.series || {}).some((s) => Object.keys(s).length);
   if (!hasPrices) {
@@ -31,19 +38,106 @@ async function boot() {
     return;
   }
 
-  ctx = createContext(config, datasets);
+  await buildContext();
   $("#updated").textContent = `Data through ${longDate(ctx.dates.at(-1))}`;
   const missed = fetchers.flatMap((f) => (datasets[f.name]?.failures || []).map((m) => m.split(":")[0]));
   if (missed.length) $("#failures").textContent = ` Last update missed: ${missed.join(", ")}.`;
 
   buildMenu();
   buildRanges();
-  ctx.onChange(() => { syncRanges(); renderAll(); });
+  renderAccount();
+  db.onAuthChange(() => { renderAccount(); route(); });
   addEventListener("hashchange", route);
   let t;
   addEventListener("resize", () => { clearTimeout(t); t = setTimeout(renderAll, 120); });
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", renderAll);
   await route();
+}
+
+// ---------- context and the hosted watchlist ----------
+async function buildContext() {
+  let rows = [];
+  try { rows = await db.list(); }
+  catch (e) { toast(`Couldn't load the watchlist: ${e.message}`, true); }
+  // hosted rows first; stocks listed only in config.json stay as fixed entries
+  const hosted = rows.map((r) => ({ ...r, hosted: true }));
+  const watchlist = [...hosted, ...staticWatchlist.filter((w) => !hosted.some((r) => r.symbol === w.symbol))];
+  const state = ctx?.state;
+  ctx = createContext({ ...config, watchlist }, datasets);
+  if (state) Object.assign(ctx.state, state);
+  ctx.onChange(() => { syncRanges(); renderAll(); });
+  ctx.db = db;
+  ctx.toast = toast;
+  ctx.onWatchlist = (sym) => ctx.watchlist.some((w) => w.symbol === sym);
+  /** Add a stock to the hosted watchlist, then redraw the page. */
+  ctx.addToWatchlist = async (item) => {
+    await db.add(item);
+    toast(`${item.symbol} added to the watchlist. Prices arrive with the next daily update.`);
+    await buildContext();
+    await route();
+  };
+  ctx.removeFromWatchlist = async (sym) => {
+    await db.remove(sym);
+    toast(`${sym} removed from the watchlist.`);
+    await buildContext();
+    await route();
+  };
+  /** Only hosted entries can be removed from the site. */
+  ctx.canRemove = (sym) => db.canEdit && ctx.watchlist.some((w) => w.symbol === sym && w.hosted);
+}
+
+// ---------- account (sign in / out) ----------
+function renderAccount() {
+  const box = $("#account");
+  box.replaceChildren();
+  if (!db.enabled) return;
+  if (db.email) {
+    const who = h("span", "account-who", db.email.split("@")[0]);
+    who.title = db.email + (db.canEdit ? "" : " (view only: not in the editors list)");
+    if (!db.canEdit) who.append(h("span", "muted", " · view only"));
+    const out = h("button", "link-btn", "Sign out");
+    out.addEventListener("click", () => db.signOut());
+    box.append(who, out);
+    return;
+  }
+  const btn = h("button", "link-btn", "Sign in");
+  const panel = h("div", "account-panel");
+  panel.hidden = true;
+  const input = h("input");
+  Object.assign(input, { type: "email", placeholder: "you@example.com", autocomplete: "email", required: true });
+  input.setAttribute("aria-label", "Email");
+  const send = h("button", "btn", "Email me a link");
+  const msg = h("p", "account-msg", "We'll email you a one-time sign-in link.");
+  const submit = async () => {
+    if (!input.value || !input.checkValidity()) { msg.textContent = "Enter a valid email."; return; }
+    send.disabled = true;
+    msg.textContent = "Sending…";
+    try {
+      await db.signIn(input.value.trim());
+      msg.textContent = "Check your email and tap the link to sign in.";
+    } catch (e) {
+      msg.textContent = e.message;
+    } finally { send.disabled = false; }
+  };
+  send.addEventListener("click", submit);
+  input.addEventListener("keydown", (e) => e.key === "Enter" && submit());
+  btn.addEventListener("click", () => { panel.hidden = !panel.hidden; if (!panel.hidden) input.focus(); });
+  if (!renderAccount.bound) {   // close the sign-in panel when clicking elsewhere (bound once)
+    renderAccount.bound = true;
+    document.addEventListener("click", (e) => { const p = $("#account .account-panel"); if (p && !$("#account").contains(e.target)) p.hidden = true; });
+  }
+  panel.append(input, send, msg);
+  box.append(btn, panel);
+}
+
+let toastTimer;
+function toast(text, isError = false) {
+  const t = $("#toast");
+  t.textContent = text;
+  t.className = "toast" + (isError ? " error" : "");
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, isError ? 6000 : 3500);
 }
 
 // ---------- pages ----------
@@ -60,7 +154,9 @@ async function route() {
 
   // menu: highlight the current page (a hidden page highlights its parent)
   // a ticker page belongs under Watchlist if the ticker is on the watchlist, else under the first page
-  const parent = page.parent || (page.id === "ticker" && ctx.watchlist.some((w) => w.symbol === arg) ? "watchlist" : pages[0].id);
+  const inTop = ctx.data.smallcaps?.gainers?.some((g) => g.symbol === arg) && pages.some((p) => p.id === "top10");
+  const parent = page.parent || (page.id !== "ticker" ? pages[0].id
+    : ctx.watchlist.some((w) => w.symbol === arg) ? "watchlist" : inTop ? "top10" : pages[0].id);
   const current = page.hidden ? parent : page.id;
   document.querySelectorAll("#menu a").forEach((a) => a.toggleAttribute("aria-current", a.dataset.page === current));
 
