@@ -12,7 +12,8 @@ While that history is shorter than KEEP_DAYS it downloads older holdings files,
 up to BACKFILL_PER_RUN a run. Run it after prices and smallcaps.
 
 Output (data/picks.json):
-    {asOf, historyDays, scanned, picks: [row], cautions: [row], watchlist: {SYMBOL: row}, failures}
+    {asOf, historyDays, scanned, picks: [row], cautions: [row], watchlist: {SYMBOL: row},
+     backfillProblem (why older holdings files didn't download, or null), failures}
     row = {symbol, name, sector, price, score, signals: [{text, tone}],
            ind: {sma20, sma50, sma200, rsi, macd, macdSignal, mom20}}
 """
@@ -202,12 +203,13 @@ def closing(prices):
 
 
 def backfill(hist, no_data):
-    """Download older holdings files until there are KEEP_DAYS days. Returns False if
-    iShares ignores the date (every answer is the same newer file)."""
+    """Download older holdings files until there are KEEP_DAYS days. Returns (keep trying,
+    last problem); keep trying is False if iShares ignores the date (every answer is the
+    same newer file)."""
     day = date.fromisoformat(min(hist))
     floor = day - timedelta(days=KEEP_DAYS * 7 // 5 + 30)
     tries = errors = same = 0
-    newest = max(hist)
+    newest, problem = max(hist), None
     while len(hist) < KEEP_DAYS and tries < BACKFILL_PER_RUN and day > floor:
         day -= timedelta(days=1)
         d = day.isoformat()
@@ -218,7 +220,8 @@ def backfill(hist, no_data):
             got, stocks = parse_holdings(download(day))
         except Exception as e:  # network trouble or no file that day; try again next run
             errors += 1
-            print(f"  picks: no holdings for {d}: {e}")
+            problem = f"{d}: {type(e).__name__}: {e}"[:300]
+            print(f"  picks: no holdings for {problem}")
             if errors >= 3:
                 break
             continue
@@ -228,13 +231,13 @@ def backfill(hist, no_data):
             same = same + 1 if got >= newest else 0
             if same >= 5:
                 print("  picks: iShares ignores the date parameter; history will build one day per run")
-                return False
+                return False, "iShares ignores the date parameter"
             hist.setdefault(got, closing({s: v["price"] for s, v in stocks.items()}))
             continue
         same = 0
         hist[d] = closing({s: v["price"] for s, v in stocks.items()})
     print(f"  picks: {tries} older holdings files tried, history now {len(hist)} days")
-    return True
+    return True, problem
 
 
 # ---------- run ----------
@@ -252,12 +255,13 @@ def run(config, client, previous):
     members = small.get("members", {})
 
     hist, no_data, backfill_ok = load_history()
+    problem = None
     if small.get("asOf") and small.get("prices"):
         hist[small["asOf"]] = closing(small["prices"])
     if not hist and not prices:
         raise RuntimeError("no prices or holdings to scan yet; run prices and smallcaps first")
     if hist and backfill_ok and len(hist) < KEEP_DAYS:
-        backfill_ok = backfill(hist, no_data)
+        backfill_ok, problem = backfill(hist, no_data)
     if hist:
         save_history(hist, no_data, backfill_ok)
     dates = sorted(hist)[-KEEP_DAYS:]
@@ -296,5 +300,6 @@ def run(config, client, previous):
         "picks": picks,
         "cautions": cautions,
         "watchlist": watch,
+        "backfillProblem": problem,
         "failures": [],
     }
