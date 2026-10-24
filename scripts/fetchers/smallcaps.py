@@ -19,10 +19,12 @@ import re
 import urllib.request
 from datetime import datetime
 
-HOLDINGS_URL = (
+# iShares Russell 2000 ETF (IWM) holdings; tried in order
+HOLDINGS_URLS = [
+    "https://www.ishares.com/us/products/239710/x/latest-holdings.csv",
     "https://www.ishares.com/us/products/239710/ishares-russell-2000-etf/"
-    "1467271812596.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund"
-)
+    "1467271812596.ajax?fileType=csv&fileName=IWM_holdings&dataType=fund",
+]
 TOP_N = 10
 MIN_PRICE = 1.0        # skip sub-$1 stocks
 MAX_CHANGE = 2.0       # skip moves over +200%, almost always a reverse split or bad print
@@ -37,12 +39,23 @@ def num(s):
 
 
 def download() -> str:
-    req = urllib.request.Request(HOLDINGS_URL, headers={
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36",
-        "Accept": "text/csv,*/*",
-    })
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return r.read().decode("utf-8-sig", errors="replace")
+    """Return the first holdings file that looks like CSV."""
+    problems = []
+    for url in HOLDINGS_URLS:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36",
+            "Accept": "text/csv,*/*",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                text = r.read().decode("utf-8-sig", errors="replace")
+        except Exception as e:
+            problems.append(f"{url}: {e}")
+            continue
+        if "\nTicker," in text:
+            return text
+        problems.append(f"{url}: not a holdings CSV (starts {text[:60]!r})")
+    raise ValueError("; ".join(problems))
 
 
 def parse_holdings(text: str):
