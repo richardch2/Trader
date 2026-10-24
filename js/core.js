@@ -14,10 +14,16 @@ export const RANGES = [
 const PALETTE = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7"];
 
 export function createContext(config, datasets) {
+  const lists = {
+    tickers: config.tickers || [],
+    watchlist: config.watchlist || [],
+  };
+  const everyone = [...lists.tickers, ...lists.watchlist.filter((w) => !lists.tickers.some((t) => t.symbol === w.symbol))];
+
   const prices = datasets.prices?.series || {};
   const closes = {};
   const allDates = new Set();
-  for (const t of config.tickers) {
+  for (const t of everyone) {
     const s = prices[t.symbol] || {};
     closes[t.symbol] = new Map(Object.entries(s).map(([d, b]) => [d, b.c]));
     Object.keys(s).forEach((d) => allDates.add(d));
@@ -25,9 +31,12 @@ export function createContext(config, datasets) {
   const dates = [...allDates].sort();
   const benchmark = config.benchmark;
 
+  // colors are assigned per list, so each page's chart uses the full palette
   const colors = {};
-  let i = 0;
-  for (const t of config.tickers) colors[t.symbol] = t.symbol === benchmark ? "--bench" : PALETTE[i++ % PALETTE.length];
+  for (const list of Object.values(lists)) {
+    let i = 0;
+    for (const t of list) colors[t.symbol] ??= t.symbol === benchmark ? "--bench" : PALETTE[i++ % PALETTE.length];
+  }
 
   const listeners = new Set();
 
@@ -35,11 +44,17 @@ export function createContext(config, datasets) {
     config,
     /** Raw output of each fetcher, keyed by fetcher name (data/<name>.json). */
     data: datasets,
-    tickers: config.tickers,
+    /** The index ETFs from config.json (the overview list). */
+    tickers: lists.tickers,
+    watchlist: lists.watchlist,
+    /** A named list: "tickers" or "watchlist". */
+    list: (name = "tickers") => lists[name] || [],
     primary: config.primary,
     benchmark,
     /** Every trading day with data for any ticker, oldest first. */
     dates,
+    /** The current page and its argument, e.g. {page: "ticker", arg: "IWM"} for #ticker/IWM. */
+    route: { page: null, arg: null },
 
     /** Shared, page-wide state. Change it with ctx.set(); every card re-renders. */
     state: { range: config.defaultRange || "3M" },
@@ -49,10 +64,24 @@ export function createContext(config, datasets) {
     },
     onChange(fn) { listeners.add(fn); },
 
-    ticker: (sym) => config.tickers.find((t) => t.symbol === sym),
+    /**
+     * Resolve a symbol from card options. Besides plain symbols, accepts
+     * "$primary", "$benchmark" and "$route" (the ticker in the page address).
+     */
+    resolve(sym) {
+      if (sym === "$primary") return ctx.primary;
+      if (sym === "$benchmark") return ctx.benchmark;
+      if (sym === "$route") return ctx.route.arg;
+      return sym;
+    },
+    ticker: (sym) => everyone.find((t) => t.symbol === sym),
     color: (sym) => colors[sym] || "--muted",
     has: (sym) => (closes[sym]?.size || 0) > 0,
+    /** Link to a ticker's detail page. */
+    href: (sym) => `#ticker/${encodeURIComponent(sym)}`,
 
+    /** Raw daily bars {o,h,l,c,v} keyed by date. */
+    bars: (sym) => prices[sym] || {},
     /** [{d, c}] of daily closes for a ticker, oldest first. */
     series(sym) {
       const m = closes[sym] || new Map();
@@ -64,6 +93,12 @@ export function createContext(config, datasets) {
     ret(sym, n) {
       const s = ctx.series(sym);
       return s.length > n ? s.at(-1).c / s.at(-1 - n).c - 1 : null;
+    },
+    /** Return since a date (first close on or after it), or null if no data then. */
+    retSince(sym, day) {
+      const s = ctx.series(sym);
+      const start = s.find((p) => p.d >= day);
+      return start && s.length ? s.at(-1).c / start.c - 1 : null;
     },
 
     range: () => RANGES.find((r) => r.id === ctx.state.range) || RANGES[1],
@@ -96,18 +131,18 @@ export function createContext(config, datasets) {
   return ctx;
 }
 
-/** Standard card heading: title, one-line note, optional controls on the right. */
+/** Standard card heading: title, one-line note, and a slot for controls or links on the right. */
 export function cardHead(el, title, note) {
   const head = document.createElement("div");
   head.className = "card-head";
   const left = document.createElement("div");
-  const h = document.createElement("h2"); h.textContent = title || "";
-  left.append(h);
+  const h2 = document.createElement("h2"); h2.textContent = title || "";
+  left.append(h2);
   if (note) { const p = document.createElement("p"); p.className = "note"; p.textContent = note; left.append(p); }
   const right = document.createElement("div"); right.className = "card-tools";
   head.append(left, right);
   el.append(head);
-  return { head, note: left.querySelector(".note"), tools: right };
+  return { head, title: h2, note: left.querySelector(".note"), tools: right };
 }
 
 /** Shorthand for creating an HTML element with a class and text. */
@@ -116,4 +151,15 @@ export function h(tag, cls, text) {
   if (cls) n.className = cls;
   if (text != null) n.textContent = text;
   return n;
+}
+
+/** Link to edit config.json on GitHub, if the repo is known. */
+export function editLink(ctx, label = "Edit list") {
+  const repo = ctx.config.repo;
+  if (!repo) return null;
+  const a = h("a", "tool-link", label);
+  a.href = `https://github.com/${repo}/edit/main/config.json`;
+  a.target = "_blank";
+  a.rel = "noopener";
+  return a;
 }

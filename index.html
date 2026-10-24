@@ -11,10 +11,15 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <nav class="bar" aria-label="Main">
+    <div class="bar-inner">
+      <a class="brand" id="brand" href="#overview"></a>
+      <div class="menu" id="menu"></div>
+    </div>
+  </nav>
   <main class="wrap">
     <header class="top">
       <div>
-        <p class="eyebrow" id="eyebrow"></p>
         <h1 id="headline" class="headline">Loading prices…</h1>
       </div>
       <div class="top-right">
@@ -29,7 +34,7 @@
         <b>Update data</b> workflow from the Actions tab. The page fills in once it finishes.</p>
     </section>
 
-    <!-- Cards listed in config.json are mounted here, in order -->
+    <!-- The current page's cards (config.json → pages) are mounted here, in order -->
     <div id="cards" class="cards" hidden></div>
 
     <footer class="foot">

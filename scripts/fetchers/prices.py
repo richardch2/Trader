@@ -1,4 +1,4 @@
-"""Daily open/high/low/close/volume for every ticker in config.json.
+"""Daily open/high/low/close/volume for every ticker and watchlist stock in config.json.
 
 Free tier returns the last 100 trading days; each run merges into what is
 already saved, so history keeps growing.
@@ -28,8 +28,9 @@ def parse(payload: dict) -> dict:
 def run(config, client, previous):
     series = (previous or {}).get("series", {})
     failures = []
-    for t in config["tickers"]:
-        sym = t["symbol"]
+    # index tickers first, so they get the API budget before the watchlist
+    symbols = list(dict.fromkeys(t["symbol"] for t in config["tickers"] + config.get("watchlist", [])))
+    for sym in symbols:
         try:
             bars = parse(client.get("TIME_SERIES_DAILY", symbol=sym, outputsize="compact"))
         except BudgetExceeded as e:
@@ -41,10 +42,10 @@ def run(config, client, previous):
         series[sym] = dict(sorted({**series.get(sym, {}), **bars}.items()))
         print(f"  prices {sym}: {len(bars)} days fetched, {len(series[sym])} saved")
 
-    if failures and len(failures) == len(config["tickers"]):
+    if failures and len(failures) == len(symbols):
         raise RuntimeError(f"every ticker failed, e.g. {failures[0]}")
 
-    wanted = {t["symbol"] for t in config["tickers"]}
+    wanted = set(symbols)
     return {
         "failures": failures,
         "series": {k: v for k, v in series.items() if k in wanted},

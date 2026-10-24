@@ -3,15 +3,18 @@
 A static page that tracks small-cap ETFs against the S&P 500, hosted on GitHub Pages and refreshed every
 trading day by a GitHub Action. Live at **<https://richardch2.github.io/Trader/>**.
 
-Everything is driven by `config.json`: which tickers to track, which cards appear on the page and in what
-order, and which data fetchers run each day.
+Everything is driven by `config.json`: which tickers to track, the watchlist, the pages in the menu and the
+cards on each, and which data fetchers run each day.
+
+**Pages:** Overview (`#overview`), Watchlist (`#watchlist`), and a detail page for any ticker (`#ticker/IWM`),
+opened by tapping a row or a mover.
 
 ## Layout
 
 ```
-config.json              tickers, cards, fetchers, API limits
+config.json              tickers, watchlist, pages + cards, fetchers, API limits
 index.html, styles.css   page shell and styles
-js/main.js               loads config + data, mounts the cards
+js/main.js               loads config + data, builds the menu, mounts the current page's cards
 js/core.js               the `ctx` every card gets: data helpers and shared state
 js/lib/                  formatting and chart helpers
 js/cards/*.js            one file per card type
@@ -31,23 +34,46 @@ data/                    fetcher output, committed by the workflow
 
 ## Common changes (config only)
 
-**Add a ticker** — add to `tickers`. It appears in the chart, legend and table automatically.
+**Watchlist** — add stocks to `watchlist`. `added` (the day you started watching) adds a "Since added"
+column; `note` shows beside it and on the stock's page. Both are optional. The **Edit list** link on the
+Watchlist page opens `config.json` on GitHub; prices for a new stock appear after the next daily update.
 
 ```json
-{ "symbol": "CROX", "name": "Crocs", "group": "Watchlist" }
+"watchlist": [
+  { "symbol": "CROX", "name": "Crocs", "added": "2026-10-24", "note": "Watching for a turn in margins" }
+]
 ```
 
-**Rearrange or remove cards** — reorder or delete entries in `cards`. `"width"` is `"full"` or `"half"`.
+Index tickers are fetched first, so with the free key (25 calls a day, 8 used by the index list) keep the
+watchlist to about 15 stocks; anything past the budget is skipped that day and noted in the page footer.
 
-**Reuse a card with different tickers** — the built-in cards take options:
+**Index tickers** — add to `tickers`. They appear on the Overview chart and table.
+
+**Menu and pages** — each entry in `pages` is a menu item, in order:
+
+```json
+{ "id": "sectors", "title": "Sectors", "heading": "Sector ETFs", "cards": [ ... ] }
+```
+
+`id` is the address (`#sectors`), `title` the menu label, `heading` the page title (default: `title`).
+`"hidden": true` keeps a page out of the menu (the ticker page works this way); `"ranges": false` hides
+the period buttons on that page.
+
+**Rearrange or remove cards** — reorder or delete entries in a page's `cards`. `"width"` is `"full"` or
+`"half"`.
+
+**Reuse a card with different tickers** — the built-in cards take options. Anywhere a symbol is expected
+you can write `$primary`, `$benchmark`, or `$route` (the ticker in the address, on the ticker page).
 
 | Card | Options |
 |---|---|
-| `headline` | `a`, `b`, `aName`, `bName` (defaults: `primary` vs `benchmark`) |
-| `performance` | `title`, `note`, `symbols` (default all), `highlight` (default primary + benchmark) |
+| `headline` | `a`, `b`, `aName`, `bName` (defaults: `primary` vs `benchmark`). Renders as the page heading. |
+| `performance` | `title`, `note`, `list` (`tickers` or `watchlist`) or `symbols: [...]`, `highlight: [...]` (`[]` = all bold) |
 | `spread` | `title`, `note`, `a`, `b` — return of `a` minus return of `b` |
 | `pair` | `title`, `note`, `series: [{symbol, label}, {symbol, label}]` |
-| `table` | `title`, `note`, `columns: [{key, label, days}]`, `sparkDays` |
+| `table` | `title`, `note`, `list`, `columns: [{key, label, days}]`, `sparkDays`, `editable` (Edit list link) |
+| `movers` | `title`, `note`, `list` (default `watchlist`), `days` (1 = today), `count` per side |
+| `ticker` | `symbol` (default `$route`) — key figures and price chart for one ticker |
 
 For example, a second spread card for small-cap value against the S&P 500:
 
@@ -57,8 +83,8 @@ For example, a second spread card for small-cap value against the S&P 500:
 
 ## Adding a new card
 
-Create `js/cards/<type>.js` and add `{ "type": "<type>", ... }` to `cards` in `config.json`. That's all;
-`main.js` loads it by name.
+Create `js/cards/<type>.js` and add `{ "type": "<type>", ... }` to a page's `cards` in `config.json`.
+That's all; `main.js` loads it by name.
 
 ```js
 // js/cards/volume.js — average daily volume per ticker over the selected period
@@ -87,9 +113,11 @@ export default function volume(opts, ctx) {
 
 What a card gets in `ctx` (see `js/core.js`):
 
-- `ctx.config`, `ctx.tickers`, `ctx.primary`, `ctx.benchmark`, `ctx.dates`
+- `ctx.config`, `ctx.tickers`, `ctx.watchlist`, `ctx.list(name)`, `ctx.primary`, `ctx.benchmark`, `ctx.dates`
+- `ctx.route` — `{page, arg}` for the current address; `ctx.resolve("$route")` gives the ticker on a ticker page
+- `ctx.href(sym)` — link to a ticker's page; `ctx.setHeading(text)` — set the page heading
 - `ctx.data.<fetcher>` — the raw output of any fetcher, e.g. `ctx.data.prices.series.IWM["2026-10-23"].v`
-- `ctx.series(sym)`, `ctx.lastClose(sym)`, `ctx.ret(sym, days)`, `ctx.has(sym)`
+- `ctx.series(sym)`, `ctx.bars(sym)`, `ctx.lastClose(sym)`, `ctx.ret(sym, days)`, `ctx.retSince(sym, date)`, `ctx.has(sym)`
 - `ctx.window()`, `ctx.range()`, `ctx.rebased(sym)`, `ctx.spread(a, b)` — all follow the selected period
 - `ctx.state`, `ctx.set({...})` — shared page state; changing it re-renders every card
 - `ctx.color(sym)` — the ticker's series color token

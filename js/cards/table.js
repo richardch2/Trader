@@ -1,8 +1,13 @@
-// Sortable table of every ticker.
-// Options: title, note, columns (return periods in trading days), sparkDays
-import { cardHead, h } from "../core.js";
+// Sortable table of a list of tickers. Tap a row to open that ticker's page.
+// Options: title, note,
+//   list      – "tickers" (default) or "watchlist"
+//   columns   – return periods: [{key, label, days}] (default 1D, 1W, 1M, 3M)
+//   sparkDays – trading days in the trend line (default 63)
+//   editable  – show an "Edit list" link to config.json on GitHub (needs "repo" in config)
+// Watchlist entries may carry "added" (YYYY-MM-DD) and "note"; those columns appear when present.
+import { cardHead, h, editLink } from "../core.js";
 import { sparkline } from "../lib/charts.js";
-import { pct, money, tone } from "../lib/format.js";
+import { pct, money, tone, date } from "../lib/format.js";
 
 const DEFAULT_COLUMNS = [
   { key: "d1", label: "1D", days: 1 },
@@ -12,29 +17,48 @@ const DEFAULT_COLUMNS = [
 ];
 
 export default function table(opts, ctx) {
+  const items = ctx.list(opts.list);
   const returns = opts.columns || DEFAULT_COLUMNS;
   const sparkDays = opts.sparkDays || 63;
+  const hasAdded = items.some((t) => t.added);
+  const hasNote = items.some((t) => t.note);
   let sort = { key: returns.find((c) => c.key === "m1")?.key || returns[0].key, dir: -1 };
-  let tbl;
+  let tbl, empty;
 
   const cols = [
     { key: "sym", label: "Ticker", text: true },
     { key: "name", label: "Name", text: true, cls: "hide-sm" },
     { key: "price", label: "Price" },
     ...returns,
+    ...(hasAdded ? [{ key: "since", label: "Since added" }] : []),
     { key: "spark", label: "Trend", cls: "hide-sm", nosort: true },
+    ...(hasNote ? [{ key: "note", label: "Note", text: true, cls: "hide-sm note-col" }] : []),
   ];
 
   return {
     mount(el) {
-      cardHead(el, opts.title || "All tickers", opts.note || "Returns over trading days. Tap a column to sort.");
+      const { tools } = cardHead(el, opts.title || "All tickers", opts.note || "Returns over trading days. Tap a column to sort, a row for details.");
+      const edit = opts.editable && editLink(ctx);
+      if (edit) tools.append(edit);
+      empty = h("div", "card-empty");
+      empty.append(h("p", null, "Nothing on this list yet."));
+      if (edit) empty.append(editLink(ctx, "Add tickers on GitHub"));
       const wrap = h("div", "table-wrap");
       tbl = document.createElement("table");
+      tbl.className = "linked";
       tbl.append(document.createElement("thead"), document.createElement("tbody"));
+      tbl.addEventListener("click", (ev) => {
+        const row = ev.target.closest("tr[data-sym]");
+        if (row && !ev.target.closest("a")) location.hash = ctx.href(row.dataset.sym);
+      });
       wrap.append(tbl);
-      el.append(wrap);
+      el.append(empty, wrap);
     },
     render(el) {
+      empty.hidden = items.length > 0;
+      tbl.hidden = items.length === 0;
+      if (!items.length) return;
+
       const tr = document.createElement("tr");
       for (const c of cols) {
         const th = h("th", c.cls);
@@ -52,26 +76,44 @@ export default function table(opts, ctx) {
       }
       tbl.tHead.replaceChildren(tr);
 
-      const rows = ctx.tickers.map((t) => {
-        const r = { t, sym: t.symbol, name: t.name, price: ctx.lastClose(t.symbol) };
+      const rows = items.map((t) => {
+        const r = { t, sym: t.symbol, name: t.name || "", price: ctx.lastClose(t.symbol), note: t.note || "" };
         for (const c of returns) r[c.key] = ctx.ret(t.symbol, c.days);
+        if (hasAdded) r.since = t.added ? ctx.retSince(t.symbol, t.added) : null;
         return r;
       });
       rows.sort((a, b) => {
         const A = a[sort.key], B = b[sort.key];
-        if (A == null) return 1; if (B == null) return -1;
+        if (A == null || A === "") return 1; if (B == null || B === "") return -1;
         return (typeof A === "string" ? A.localeCompare(B) : A - B) * sort.dir;
       });
 
       tbl.tBodies[0].replaceChildren(...rows.map((r) => {
         const row = document.createElement("tr");
-        const sym = h("td", "sym", r.sym);
+        row.dataset.sym = r.sym;
+        const sym = h("td", "sym");
+        const a = h("a", null, r.sym); a.href = ctx.href(r.sym);
+        sym.append(a);
         if (r.sym === ctx.benchmark) sym.append(h("span", "group", "bench"));
-        row.append(sym, h("td", "name hide-sm", r.name), h("td", null, money(r.price)));
-        for (const c of returns) row.append(h("td", tone(r[c.key]), pct(r[c.key])));
-        const sp = h("td", "spark hide-sm");
-        sparkline(sp, ctx.series(r.sym).slice(-sparkDays).map((p) => p.c));
-        row.append(sp);
+        row.append(sym, h("td", "name hide-sm", r.name));
+        if (!ctx.has(r.sym)) {
+          // on the list but not fetched yet
+          const wait = h("td", "waiting", "Waiting for the next daily update");
+          wait.colSpan = cols.length - 2 - (hasNote ? 1 : 0);
+          row.append(wait);
+        } else {
+          row.append(h("td", null, money(r.price)));
+          for (const c of returns) row.append(h("td", tone(r[c.key]), pct(r[c.key])));
+          if (hasAdded) {
+            const td = h("td", tone(r.since), pct(r.since));
+            if (r.t.added) td.title = `Since ${date(r.t.added, { month: "short", day: "numeric", year: "numeric" })}`;
+            row.append(td);
+          }
+          const sp = h("td", "spark hide-sm");
+          sparkline(sp, ctx.series(r.sym).slice(-sparkDays).map((p) => p.c));
+          row.append(sp);
+        }
+        if (hasNote) row.append(h("td", "note-col hide-sm", r.note));
         return row;
       }));
     },

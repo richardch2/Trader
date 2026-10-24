@@ -25,7 +25,7 @@ function niceTicks(lo, hi, n) {
 /**
  * Multi-line chart over dates.
  * lines: [{label, pts: [{d: "YYYY-MM-DD", v: number}], color: "--s1", dashed?, strong?, muted?}]
- * options: yFmt, zero (baseline), endLabels, tooltip, area
+ * options: yFmt, zero (baseline; null to fit the data, e.g. for prices), endLabels, tooltip, area
  */
 export function lineChart(box, lines, { yFmt = (v) => pct(v), zero = 0, endLabels = true, tooltip = true, area = false } = {}) {
   box.replaceChildren();
@@ -35,7 +35,8 @@ export function lineChart(box, lines, { yFmt = (v) => pct(v), zero = 0, endLabel
   const all = lines.flatMap((l) => l.pts);
   const win = [...new Set(all.map((p) => p.d))].sort();
   const idx = new Map(win.map((d, i) => [d, i]));
-  let lo = Math.min(zero, ...all.map((p) => p.v)), hi = Math.max(zero, ...all.map((p) => p.v));
+  const vals = all.map((p) => p.v);
+  let lo = Math.min(...vals, ...(zero == null ? [] : [zero])), hi = Math.max(...vals, ...(zero == null ? [] : [zero]));
   const pad = (hi - lo) * 0.08 || 0.01; lo -= pad; hi += pad;
 
   const ticks = niceTicks(lo, hi, H < 200 ? 3 : 5);
@@ -51,7 +52,7 @@ export function lineChart(box, lines, { yFmt = (v) => pct(v), zero = 0, endLabel
   const y = (v) => m.t + (1 - (v - lo) / (hi - lo)) * ih;
 
   for (const t of ticks) {
-    svgEl("line", { x1: m.l, x2: m.l + iw, y1: y(t), y2: y(t), stroke: css(t === 0 ? "--muted" : "--grid"), "stroke-width": 1, "stroke-opacity": t === 0 ? 0.5 : 1 }, svg);
+    svgEl("line", { x1: m.l, x2: m.l + iw, y1: y(t), y2: y(t), stroke: css(t === zero ? "--muted" : "--grid"), "stroke-width": 1, "stroke-opacity": t === zero ? 0.5 : 1 }, svg);
     svgEl("text", { x: m.l - 6, y: y(t) + 4, "text-anchor": "end" }, svg).textContent = yFmt(t);
   }
   const nx = Math.max(2, Math.min(6, Math.floor(iw / 90)));
@@ -69,7 +70,7 @@ export function lineChart(box, lines, { yFmt = (v) => pct(v), zero = 0, endLabel
       const g = svgEl("linearGradient", { id, x1: 0, y1: 0, x2: 0, y2: 1 }, svgEl("defs", {}, svg));
       svgEl("stop", { offset: 0, "stop-color": color, "stop-opacity": 0.22 }, g);
       svgEl("stop", { offset: 1, "stop-color": color, "stop-opacity": 0 }, g);
-      svgEl("path", { d: `${dpath}L${x(l.pts.at(-1).d)},${y(zero)}L${x(l.pts[0].d)},${y(zero)}Z`, fill: `url(#${id})` }, svg);
+      svgEl("path", { d: `${dpath}L${x(l.pts.at(-1).d)},${y(zero ?? lo)}L${x(l.pts[0].d)},${y(zero ?? lo)}Z`, fill: `url(#${id})` }, svg);
     }
     svgEl("path", {
       d: dpath, fill: "none", stroke: color, "stroke-width": l.strong ? 2.25 : 1.5,
