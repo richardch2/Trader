@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "small-cap-tracker",
       },
-      body: JSON.stringify({ ref: "main", inputs: { only: "prices picks earnings" } }),
+      body: JSON.stringify({ ref: "main", inputs: { only: "prices picks earnings news" } }),
     });
     if (res.status !== 204) {
       const text = await res.text();

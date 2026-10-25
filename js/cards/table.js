@@ -7,7 +7,10 @@
 // Watchlist entries may carry "added" (YYYY-MM-DD) and "note"; those columns appear when present.
 import { cardHead, h, editLink, earningsBadge } from "../core.js";
 import { sparkline } from "../lib/charts.js";
+import { csvLink } from "../lib/csv.js";
 import { pct, money, tone, date } from "../lib/format.js";
+
+const round = (x) => (x == null ? "" : Math.round(x * 1e5) / 1e5);
 
 const DEFAULT_COLUMNS = [
   { key: "d1", label: "1D", days: 1 },
@@ -42,6 +45,13 @@ export default function table(opts, ctx) {
       const { tools } = cardHead(el, opts.title || "All tickers", opts.note || "Returns over trading days. Tap a column to sort, a row for details.");
       const edit = opts.editable && editLink(ctx);
       if (edit) tools.append(edit);
+      // returns as decimals (0.052 = +5.2%), so a spreadsheet can format and sum them
+      tools.append(csvLink(opts.list || "tickers", () => [
+        ["Symbol", "Name", "Last close", ...returns.map((c) => `${c.label} return`), ...(hasAdded ? ["Added", "Since added"] : []), "Note"],
+        ...items.map((t) => [t.symbol, t.name || "", ctx.lastClose(t.symbol),
+          ...returns.map((c) => round(ctx.ret(t.symbol, c.days))),
+          ...(hasAdded ? [t.added || "", t.added ? round(ctx.retSince(t.symbol, t.added)) : ""] : []), t.note || ""]),
+      ]));
       empty = h("div", "card-empty");
       empty.append(h("p", null, "Nothing on this list yet."));
       if (edit) empty.append(editLink(ctx, "Add tickers on GitHub"));

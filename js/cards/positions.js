@@ -5,6 +5,7 @@
 import { cardHead, h, isCrypto, earningsBadge } from "../core.js";
 import { money, pct, tone } from "../lib/format.js";
 import { COINS } from "./addticker.js";
+import { csvLink } from "../lib/csv.js";
 
 const SYMBOL = /^[A-Z][A-Z0-9.-]{0,11}$/;
 /** Dollars; amounts of $1,000 or more drop the cents so the table fits a phone. */
@@ -175,7 +176,12 @@ export default function positions(opts, ctx) {
   return {
     mount(el) {
       if (!ctx.db.enabled) { el.hidden = true; return; }
-      cardHead(el, opts.title || "Positions", opts.note || "Only you can see your positions. Values use the latest daily close.");
+      const { tools } = cardHead(el, opts.title || "Positions", opts.note || "Only you can see your positions. Values use the latest daily close.");
+      tools.append(csvLink("positions", () => [
+        ["Symbol", "Shares", "Avg cost", "Last close", "Value", "Day change $", "Gain $", "Gain %", "Opened"],
+        ...rows().map((r) => [r.symbol, r.shares, r.cost, r.price, r.value && +r.value.toFixed(2), r.day && +r.day.toFixed(2),
+          r.gain && +r.gain.toFixed(2), r.gainPct == null ? "" : +r.gainPct.toFixed(5), r.opened]),
+      ]));
       summary = h("div", "stats");
       tableWrap = h("div");
       formBox = h("div");

@@ -133,7 +133,15 @@
       "enabled": true
     },
     {
+      "name": "breadth",
+      "enabled": true
+    },
+    {
       "name": "earnings",
+      "enabled": true
+    },
+    {
+      "name": "news",
       "enabled": true
     }
   ],
@@ -176,6 +184,14 @@
               "label": "Growth"
             }
           ]
+        },
+        {
+          "type": "breadth",
+          "width": "full"
+        },
+        {
+          "type": "sectors",
+          "width": "full"
         },
         {
           "type": "table",
@@ -398,6 +414,10 @@
             "$route",
             "$benchmark"
           ]
+        },
+        {
+          "type": "news",
+          "width": "full"
         }
       ]
     },
@@ -434,6 +454,10 @@
             "$route",
             "BTC-USD"
           ]
+        },
+        {
+          "type": "news",
+          "width": "full"
         }
       ]
     }

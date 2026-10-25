@@ -6,7 +6,7 @@ trading day by a GitHub Action. Live at **<https://richardch2.github.io/Trader/>
 Everything is driven by `config.json`: which tickers to track, the watchlist, the pages in the menu and the
 cards on each, and which data fetchers run each day.
 
-**Pages:** Overview (`#overview`, with the macro backdrop: 10-year yield, VIX, dollar), Top 10 (`#top10`, the
+**Pages:** Overview (`#overview`, with the macro backdrop, Russell 2000 breadth and a sector map), Top 10 (`#top10`, the
 day's biggest Russell 2000 gainers), Picks (`#picks`, daily ideas from moving averages, MACD and RSI), Watchlist
 (`#watchlist`), Crypto (`#crypto`), Portfolio (`#portfolio`: your positions and price alerts), and a detail page for any ticker (`#ticker/IWM`) or coin (`#coin/BTC-USD`),
 opened by tapping a row, a mover, the scrolling ticker under the menu, or the search button (🔍) in the menu bar.
@@ -44,6 +44,7 @@ supabase/setup.sql       one-time database setup for the hosted watchlist
 supabase/push.sql        one-time setup for notifications; supabase/functions/notify-picks sends them
 supabase/alerts-positions.sql  private price alerts and positions (one row set per signed-in person)
 supabase/functions/request-update  starts a prices-only update when an editor adds a stock or coin
+supabase/functions/quote  delayed intraday quotes for ticker pages (Yahoo, cached 60 s)
 data/                    fetcher output, committed by the workflow
 .github/workflows/       daily "Update data" job
 ```
@@ -142,6 +143,19 @@ One-time setup (until it's done the Notify button stays hidden):
 the next 3 months); without one it asks Yahoo about the stocks on screen (watchlist, picks, top 10). Tables
 show an "Earnings Nov 5" chip for reports within 14 days (orange within 3), and ticker pages show the date.
 
+## Breadth, sectors, news and live quotes
+
+- **Breadth** (`scripts/fetchers/breadth.py`, after picks): from the Russell 2000 history picks keeps, the daily
+  count of rising and falling stocks, the share above their 20- and 50-day averages, and new 20-day highs and
+  lows. No downloads.
+- **Sectors**: each sector's median 1-day, 1-week and 1-month return and its biggest movers today, shown as a
+  shaded map on Overview. Same file, same run.
+- **News** (`scripts/fetchers/news.py`): up to 5 headlines from the last 14 days per stock or coin on your lists,
+  picks and top 10, from Yahoo. Shown on each ticker and coin page.
+- **Live quote**: ticker and coin pages show a "Now" price during market hours (stocks about 15 minutes delayed,
+  coins near real time), refreshed every minute, from the `quote` Edge Function.
+- **CSV**: every table and Positions has a CSV link that downloads what's on screen.
+
 ## Price alerts, positions and reminders
 
 Signed-in people (any email) can keep private **price alerts** and **positions**; nobody else can read them.
@@ -221,6 +235,9 @@ you can write `$primary`, `$benchmark`, or `$route` (the ticker in the address, 
 | `movers` | `title`, `note`, `list` (default `watchlist`), `days` (1 = today), `count` per side |
 | `ticker` | `symbol` (default `$route`) — key figures, price chart, and Add/Remove watchlist button |
 | `topgainers` | `title`, `note`, `count` (default 10) — the day's top Russell 2000 gainers with Add buttons |
+| `breadth` | `title`, `note` — Russell 2000 breadth stats and the share above the 20- and 50-day averages |
+| `sectors` | `title`, `note` — sector map with 1D / 1W / 1M; tap a sector for its movers |
+| `news` | `symbol` (default `$route`), `title`, `count` — latest headlines |
 | `alerts` | `title`, `note`, `symbol` (`$route` on ticker pages; leave out for all your alerts) — set and list price alerts |
 | `positions` | `title`, `note` — your holdings: value, day change, gain, weight; add, edit (tap a row) and remove |
 | `addticker` | `title`, `note`, `list` (`crypto` for the coin version) — add to the hosted list, with suggestions |

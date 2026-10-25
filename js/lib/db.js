@@ -112,6 +112,12 @@ export async function connect(settings) {
       const { error } = await client.from("positions").delete().eq("id", id);
       if (error) fail(error);
     },
+    /** Delayed intraday quotes (supabase/functions/quote): {SYMBOL: {price, prevClose, change, time, state, delayMin}}. */
+    async quotes(symbols) {
+      const { data, error } = await client.functions.invoke("quote", { body: { symbols } });
+      if (error) throw new Error(error.message);
+      return data?.quotes || {};
+    },
     /** Ask for a prices-only update now (editors; needs supabase/functions/request-update). */
     async requestUpdate() {
       try {
@@ -159,6 +165,7 @@ function disabled(reason = null) {
     async listAlerts() { return []; },
     async listPositions() { return []; },
     async requestUpdate() { return { dispatched: false }; },
+    async quotes() { return {}; },
     async pushKey() { return null; },
   };
 }

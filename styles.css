@@ -406,3 +406,41 @@ table.positions td { vertical-align: top; }
   }
   table.positions th, table.positions td { padding-left: 6px; padding-right: 6px; }
 }
+
+/* ---------- live quote line on ticker pages ---------- */
+.live-quote { margin: 12px 0 0; font: 14px var(--mono); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.live-meta { font-size: 12px; }
+.live-quote[hidden] { display: none; }
+.live-price { font-weight: 500; }
+.live-label { color: var(--muted); }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; align-self: center; }
+.live-dot.on { background: var(--up); box-shadow: 0 0 0 3px color-mix(in srgb, var(--up) 25%, transparent); }
+@media (prefers-reduced-motion: no-preference) { .live-dot.on { animation: live-pulse 2s ease-in-out infinite; } }
+@keyframes live-pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--up) 0%, transparent); } }
+
+/* ---------- news ---------- */
+.news-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.news-item { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.news-item:last-child { border-bottom: 0; }
+.news-title { color: var(--fg); text-decoration: none; font-weight: 500; line-height: 1.35; }
+.news-title:hover { color: var(--accent); }
+.news-meta { font-size: 12px; margin-top: 3px; }
+
+/* ---------- breadth and sectors ---------- */
+.chart.chart-short { height: 220px; }
+.ranges.seg button { padding: 4px 10px; font-size: 12px; }
+.sector-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; }
+.sector-tile {
+  display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); color: var(--fg); font: inherit; cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.sector-tile:hover { border-color: var(--muted); }
+.sector-tile[aria-pressed="true"] { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
+.sector-name { font-size: 13px; font-weight: 500; line-height: 1.25; }
+.sector-ret { font: 400 20px/1.2 var(--serif); }
+.sector-sub { font-size: 11.5px; color: var(--muted); }
+.sector-detail { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.sector-detail[hidden] { display: none; }
+.sector-detail > h3 { margin: 0 0 4px; font-size: 14px; }
+.mover-name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14ch; }
+@media (max-width: 480px) { .sector-grid { grid-template-columns: 1fr 1fr; } .mover-name { display: none; } }

@@ -4,6 +4,10 @@ import { cardHead, h, isCrypto, nextEarnings } from "../core.js";
 import { lineChart } from "../lib/charts.js";
 import { pct, pts, money, compact, tone, longDate, date } from "../lib/format.js";
 
+// one listener for the whole app: coming back to the page refreshes the open ticker's quote
+let currentLive = null;
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") currentLive?.(); });
+
 export default function ticker(opts, ctx) {
   const sym = ctx.resolve(opts.symbol || "$route");
   const coin = isCrypto(sym);
@@ -33,6 +37,35 @@ export default function ticker(opts, ctx) {
     return wrap;
   }
 
+  // ---------- the "now" line: a delayed quote during market hours, refreshed every minute ----------
+  let live, timer;
+  const clock = (iso) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+  async function refreshLive() {
+    clearTimeout(timer);
+    if (!live?.isConnected) return;               // the page changed: stop
+    try {
+      const q = (await ctx.db.quotes([sym]))[sym];
+      const lastDay = Object.keys(ctx.bars(sym)).sort().at(-1) || "";
+      // show it while trading, or when it's newer than the last saved close (before the evening update)
+      const fresh = q && (q.state === "open" || q.time.slice(0, 10) > lastDay);
+      live.hidden = !fresh;
+      if (fresh) {
+        live.replaceChildren(
+          h("span", "live-dot" + (q.state === "open" ? " on" : "")),
+          h("span", "live-label", q.state === "open" ? "Now" : "Today's close"),
+          h("span", "live-price", money(q.price)),
+          h("span", tone(q.change), pct(q.change)),
+          h("span", "muted live-meta", `${clock(q.time)} ET${q.delayMin ? `, ${q.delayMin}-min delay` : ""}`),
+        );
+      }
+    } catch (e) {
+      live.hidden = true;
+      console.warn("quote:", e.message);
+    }
+    if (live.isConnected && document.visibilityState === "visible") timer = setTimeout(refreshLive, 60_000);
+  }
+  currentLive = refreshLive;
+
   const member = ctx.data.smallcaps?.members?.[sym];   // [name, sector] if in the Russell 2000
   const info = ctx.ticker(sym) || (member ? { symbol: sym, name: member[0], group: `Russell 2000 · ${member[1]}` } : null);
   let stats, chart, missing;
@@ -46,6 +79,10 @@ export default function ticker(opts, ctx) {
       back.href = coin ? "#crypto" : listed || member ? "#watchlist" : "#overview";
       tools.append(watchButton(), back);
       missing = h("p", "card-empty");
+      live = h("p", "live-quote");
+      live.hidden = true;
+      el.append(live);
+      if (sym && ctx.db?.enabled && !ctx.isMacro?.(sym)) refreshLive();
       stats = h("div", "stats");
       chart = h("div", "chart");
       el.append(missing, stats, chart);

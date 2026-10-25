@@ -37,7 +37,7 @@ jobs:
       - name: Fetch data
         env:
           ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
-          ONLY: ${{ github.event.schedule == '20 14 * * 0,6' && 'prices picks' || inputs.only }}
+          ONLY: ${{ github.event.schedule == '20 14 * * 0,6' && 'prices picks breadth news' || inputs.only }}
         run: python scripts/update.py $ONLY
 
       - name: Check the site
