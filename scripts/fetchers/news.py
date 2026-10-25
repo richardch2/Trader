@@ -63,10 +63,14 @@ def run(config, client, previous):
     old = (previous or {}).get("items", {})
     cutoff = datetime.now(timezone.utc) - timedelta(days=MAX_AGE_DAYS)
     items, failures = {}, []
+    raw_counts, sample = {}, None   # what Yahoo sent, recorded so an empty result can be explained
     wanted = symbols(config)
     for sym in wanted:
         try:
             raw = yf.Ticker(sym.replace(".", "-") if sym[-2:-1] == "." else sym).news or []
+            raw_counts[sym] = len(raw)
+            if raw and sample is None:
+                sample = json.dumps(raw[0], default=str)[:1500]
             rows = [r for r in map(parse, raw) if r]
             rows = [r for r in rows if datetime.fromisoformat(r["time"]) >= cutoff]
             seen, unique = set(), []
@@ -84,4 +88,5 @@ def run(config, client, previous):
         raise RuntimeError(f"no news for any symbol, e.g. {failures[0]}")
     print(f"  news: {sum(len(v) for v in items.values())} headlines for {len(items)} symbols, {len(failures)} failed")
     # a few failures are normal (small stocks with no coverage); log them instead of flagging the footer
-    return {"failures": [], "items": items}
+    return {"failures": [], "items": items,
+            "diagnostics": {"raw": raw_counts, "sample": sample, "errors": failures[:5]}}
