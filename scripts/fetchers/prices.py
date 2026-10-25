@@ -1,15 +1,21 @@
 """Daily open/high/low/close/volume for every ticker and watchlist stock in config.json.
 
-Free tier returns the last 100 trading days; each run merges into what is
-already saved, so history keeps growing.
+Tries Yahoo Finance first (no key, no daily limit, a year of history per call),
+then Alpha Vantage for any ticker Yahoo doesn't return. Set the order in
+config.json under "api.priceSources", e.g. ["yahoo", "alphavantage"].
+
+Each run merges into what is already saved, so history keeps growing.
 
 Output (data/prices.json):
-    {"updated", "failures": [...], "series": {SYMBOL: {"YYYY-MM-DD": {o,h,l,c,v}}}}
+    {"updated", "failures": [...], "sources": {SYMBOL: "yahoo"|"alphavantage"},
+     "series": {SYMBOL: {"YYYY-MM-DD": {o,h,l,c,v}}}}
 """
 from av_client import BudgetExceeded
+from yahoo_client import Yahoo
 
 
 def parse(payload: dict) -> dict:
+    """Alpha Vantage TIME_SERIES_DAILY answer -> {day: {o,h,l,c,v}}."""
     series = payload.get("Time Series (Daily)")
     if not series:
         raise ValueError(f"no daily series in answer (keys: {', '.join(payload)})")
@@ -25,22 +31,40 @@ def parse(payload: dict) -> dict:
     }
 
 
-def run(config, client, previous):
+def from_alphavantage(client, sym):
+    if client is None:
+        raise RuntimeError("no Alpha Vantage key set")
+    return parse(client.get("TIME_SERIES_DAILY", symbol=sym, outputsize="compact"))
+
+
+def run(config, client, previous, yahoo=None):
+    api = config.get("api", {})
+    order = api.get("priceSources") or ["yahoo", "alphavantage"]
+    yahoo = yahoo or Yahoo(api.get("yahooIntervalSeconds", 0.5), api.get("yahooHistory", "1y"))
+    getters = {"yahoo": yahoo.daily, "alphavantage": lambda s: from_alphavantage(client, s)}
+
     series = (previous or {}).get("series", {})
+    sources = dict((previous or {}).get("sources", {}))
     failures = []
-    # index tickers first, so they get the API budget before the watchlist
+    # index tickers first, so they get any limited budget before the watchlist
     symbols = list(dict.fromkeys(t["symbol"] for t in config["tickers"] + config.get("watchlist", [])))
     for sym in symbols:
-        try:
-            bars = parse(client.get("TIME_SERIES_DAILY", symbol=sym, outputsize="compact"))
-        except BudgetExceeded as e:
-            failures.append(f"{sym}: {e}")
-            continue
-        except Exception as e:  # keep going; old data stays in place
-            failures.append(f"{sym}: {e}")
-            continue
-        series[sym] = dict(sorted({**series.get(sym, {}), **bars}.items()))
-        print(f"  prices {sym}: {len(bars)} days fetched, {len(series[sym])} saved")
+        problems = []
+        for name in order:
+            try:
+                bars = getters[name](sym)
+            except BudgetExceeded as e:
+                problems.append(f"{name}: {e}")
+                continue
+            except Exception as e:  # try the next source; old data stays in place
+                problems.append(f"{name}: {e}")
+                continue
+            series[sym] = dict(sorted({**series.get(sym, {}), **bars}.items()))
+            sources[sym] = name
+            print(f"  prices {sym}: {len(bars)} days from {name}, {len(series[sym])} saved")
+            break
+        else:
+            failures.append(f"{sym}: " + " | ".join(problems))
 
     if failures and len(failures) == len(symbols):
         raise RuntimeError(f"every ticker failed, e.g. {failures[0]}")
@@ -48,5 +72,6 @@ def run(config, client, previous):
     wanted = set(symbols)
     return {
         "failures": failures,
+        "sources": {k: v for k, v in sources.items() if k in wanted},
         "series": {k: v for k, v in series.items() if k in wanted},
     }

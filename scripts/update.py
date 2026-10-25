@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Run every enabled fetcher in config.json and save its output to data/<name>.json.
 
+Prices come from Yahoo Finance (no key needed), with Alpha Vantage as backup.
+
 Usage:
-    ALPHAVANTAGE_API_KEY=xxx python scripts/update.py            # all enabled fetchers
-    ALPHAVANTAGE_API_KEY=xxx python scripts/update.py prices     # just one
+    python scripts/update.py                                     # all enabled fetchers
+    python scripts/update.py prices                              # just one
+    ALPHAVANTAGE_API_KEY=xxx python scripts/update.py            # with the Alpha Vantage backup
 """
 import importlib
 import json
@@ -49,15 +52,17 @@ def merge_hosted_watchlist(config) -> list:
 
 
 def main(argv) -> int:
-    key = os.environ.get("ALPHAVANTAGE_API_KEY")
-    if not key:
-        print("ALPHAVANTAGE_API_KEY is not set (add it as a repository secret)", file=sys.stderr)
-        return 1
-
     config = json.loads((ROOT / "config.json").read_text())
     config["watchlist"] = merge_hosted_watchlist(config)
     api = config.get("api", {})
-    client = AlphaVantage(key, api.get("dailyBudget", 25), api.get("minIntervalSeconds", 13))
+
+    # Alpha Vantage is now only a backup for Yahoo Finance, so run without it if there's no key
+    key = os.environ.get("ALPHAVANTAGE_API_KEY")
+    if key:
+        client = AlphaVantage(key, api.get("dailyBudget", 25), api.get("minIntervalSeconds", 13))
+    else:
+        report("ALPHAVANTAGE_API_KEY is not set; using Yahoo Finance only", level="warning")
+        client = AlphaVantage("", 0)  # zero budget: any Alpha Vantage call fails cleanly
 
     only = set(argv)
     fetchers = [f for f in config.get("fetchers", []) if f.get("enabled", True) and (not only or f["name"] in only)]

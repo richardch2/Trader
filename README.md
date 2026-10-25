@@ -34,7 +34,8 @@ js/core.js               the `ctx` every card gets: data helpers and shared stat
 js/lib/                  formatting and chart helpers; db.js talks to the hosted watchlist
 js/cards/*.js            one file per card type
 scripts/update.py        runs every enabled fetcher, writes data/<name>.json
-scripts/av_client.py     shared Alpha Vantage client (rate limit + daily budget)
+scripts/yahoo_client.py  Yahoo Finance daily prices (main price source, no key or daily limit)
+scripts/av_client.py     shared Alpha Vantage client, used as backup (rate limit + daily budget)
 scripts/fetchers/*.py    one file per kind of data (prices, smallcaps = Russell 2000 top gainers,
                          picks = technical signals)
 supabase/setup.sql       one-time database setup for the hosted watchlist
@@ -45,8 +46,11 @@ data/                    fetcher output, committed by the workflow
 
 ## Setup (one time)
 
-1. **API key** — free key at <https://www.alphavantage.co/support/#api-key>, saved as the repository secret
-   `ALPHAVANTAGE_API_KEY` (*Settings → Secrets and variables → Actions*).
+1. **Prices** come from Yahoo Finance, which needs no key and has no daily limit, so the watchlist can be
+   as long as you like. Optional backup: a free Alpha Vantage key from
+   <https://www.alphavantage.co/support/#api-key>, saved as the repository secret `ALPHAVANTAGE_API_KEY`
+   (*Settings → Secrets and variables → Actions*). It's used only for tickers Yahoo doesn't return.
+   Change the order in `config.json` → `api.priceSources`.
 2. **Pages** — *Settings → Pages*: deploy from branch **main**, folder **/ (root)**.
 3. **Data** — *Actions → Update data → Run workflow*. After that it runs Mon–Fri around 6:20pm Eastern.
 

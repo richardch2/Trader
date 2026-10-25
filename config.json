@@ -5,7 +5,13 @@
   "benchmark": "SPY",
   "defaultRange": "3M",
   "api": {
-    "provider": "alphavantage",
+    "provider": "yahoo",
+    "priceSources": [
+      "yahoo",
+      "alphavantage"
+    ],
+    "yahooHistory": "1y",
+    "yahooIntervalSeconds": 0.5,
     "dailyBudget": 25,
     "minIntervalSeconds": 13
   },
