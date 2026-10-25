@@ -11,7 +11,7 @@ export default function ticker(opts, ctx) {
   /** Add / Remove button for the hosted watchlist (nothing when signed out or no database). */
   function watchButton() {
     const wrap = h("span", "watch-btn");
-    if (!ctx.db?.canEdit || !sym) return wrap;
+    if (!ctx.db?.canEdit || !sym || ctx.isMacro(sym)) return wrap;
     if (ctx.onWatchlist(sym)) {
       if (!ctx.canRemove(sym)) { wrap.append(h("span", "watching", "✓ Watching")); return wrap; }
       const b = h("button", "btn small ghost", "✓ Watching · Remove");
@@ -84,7 +84,7 @@ export default function ticker(opts, ctx) {
         ...(vsBench != null ? [[`vs ${ctx.benchmark}`, pts(vsBench), word, vsBench]] : []),
         ["Period high", money(hi), `${pct(last.c / hi - 1)} from high`],
         ["Period low", money(lo), `${pct(last.c / lo - 1)} from low`],
-        ["Avg. daily volume", compact(avgVol), word],
+        ...(avgVol > 0 ? [["Avg. daily volume", compact(avgVol), word]] : []),   // indexes such as ^VIX have none
       ];
       if (info?.added) {
         const since = ctx.retSince(sym, info.added);

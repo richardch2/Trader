@@ -24,6 +24,7 @@
     <div class="bar-inner">
       <a class="brand" id="brand" href="#overview"></a>
       <div class="menu" id="menu"></div>
+      <div class="search" id="search"></div>
       <div class="account" id="account"></div>
       <button class="link-btn install-btn" id="install" hidden>Install app</button>
     </div>
@@ -42,8 +43,8 @@
 
     <section id="empty" class="empty" hidden>
       <h2>No price data yet</h2>
-      <p>Add your Alpha Vantage key as the repository secret <code>ALPHAVANTAGE_API_KEY</code>, then run the
-        <b>Update data</b> workflow from the Actions tab. The page fills in once it finishes.</p>
+      <p>Run the <b>Update data</b> workflow from the repository's Actions tab. Prices come from Yahoo Finance
+        and need no key; the page fills in once the run finishes.</p>
     </section>
 
     <!-- The current page's cards (config.json → pages) are mounted here, in order -->

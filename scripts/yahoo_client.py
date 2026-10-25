@@ -5,6 +5,7 @@ It is unofficial, so it can change or rate-limit without notice; the prices
 fetcher falls back to Alpha Vantage for any ticker Yahoo doesn't return.
 """
 import json
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -51,8 +52,9 @@ class Yahoo:
 
     def daily(self, symbol: str) -> dict:
         """Return {"YYYY-MM-DD": {o,h,l,c,v}} for the last `history` of trading days."""
-        # Yahoo writes share classes with a dash (BRK-B), Alpha Vantage with a dot (BRK.B)
-        ysym = symbol.replace(".", "-")
+        # Yahoo writes share classes with a dash (BRK-B), Alpha Vantage with a dot (BRK.B);
+        # longer suffixes are exchanges and stay as they are (DX-Y.NYB, the dollar index)
+        ysym = re.sub(r"\.([A-Z])$", r"-\1", symbol)
         if yf is not None:
             try:
                 return self._daily_yfinance(ysym)

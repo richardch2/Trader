@@ -4,6 +4,9 @@ on:
   schedule:
     # 6:20pm US Eastern (22:20 UTC in summer, 23:20 in winter), Mon–Fri
     - cron: "20 22 * * 1-5"
+    # Saturday and Sunday mornings (about 10:20am Eastern): coin prices and signals only,
+    # since crypto trades on weekends and the stock market doesn't
+    - cron: "20 14 * * 0,6"
   workflow_dispatch:
     inputs:
       only:
@@ -22,9 +25,9 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -34,8 +37,11 @@ jobs:
       - name: Fetch data
         env:
           ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
-          ONLY: ${{ inputs.only }}
+          ONLY: ${{ github.event.schedule == '20 14 * * 0,6' && 'prices picks' || inputs.only }}
         run: python scripts/update.py $ONLY
+
+      - name: Check the site
+        run: python scripts/check_site.py
 
       - name: Commit data
         run: |

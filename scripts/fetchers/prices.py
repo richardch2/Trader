@@ -13,6 +13,8 @@ Output (data/prices.json):
     {"updated", "failures": [...], "sources": {SYMBOL: "yahoo"|"alphavantage"},
      "series": {SYMBOL: {"YYYY-MM-DD": {o,h,l,c,v}}}}
 """
+import re
+
 from av_client import BudgetExceeded
 from yahoo_client import Yahoo
 
@@ -37,8 +39,9 @@ def parse(payload: dict) -> dict:
 def from_alphavantage(client, sym):
     if client is None:
         raise RuntimeError("no Alpha Vantage key set")
-    if sym.endswith("-USD"):  # coins come from Yahoo only; don't spend the daily budget on them
-        raise RuntimeError("Alpha Vantage daily series doesn't cover coins")
+    if sym.endswith("-USD") or sym.startswith("^") or re.search(r"\.[A-Z]{2,}$", sym):
+        # coins, indexes (^VIX) and exchange-suffixed symbols come from Yahoo only
+        raise RuntimeError("Alpha Vantage daily series doesn't cover this symbol")
     return parse(client.get("TIME_SERIES_DAILY", symbol=sym, outputsize="compact"))
 
 
@@ -53,7 +56,8 @@ def run(config, client, previous, yahoo=None):
     failures = []
     fallbacks = {}  # SYMBOL: why the earlier sources failed, when a later one worked
     # index tickers first, so they get any limited budget before the watchlist
-    symbols = list(dict.fromkeys(t["symbol"] for t in config["tickers"] + config.get("watchlist", []) + config.get("crypto", [])))
+    lists = config["tickers"] + config.get("watchlist", []) + config.get("crypto", []) + config.get("macro", [])
+    symbols = list(dict.fromkeys(t["symbol"] for t in lists))
     for sym in symbols:
         problems = []
         for name in order:

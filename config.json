@@ -99,6 +99,26 @@
       "group": "Crypto"
     }
   ],
+  "macro": [
+    {
+      "symbol": "^TNX",
+      "name": "10-year Treasury yield",
+      "kind": "yield",
+      "hint": "Small caps carry more floating-rate debt"
+    },
+    {
+      "symbol": "^VIX",
+      "name": "VIX (market fear)",
+      "kind": "level",
+      "hint": "Above 20 is a nervous market"
+    },
+    {
+      "symbol": "DX-Y.NYB",
+      "name": "US dollar index",
+      "kind": "level",
+      "hint": "Small caps earn mostly at home"
+    }
+  ],
   "fetchers": [
     {
       "name": "prices",
@@ -120,6 +140,10 @@
       "cards": [
         {
           "type": "headline"
+        },
+        {
+          "type": "macro",
+          "width": "full"
         },
         {
           "type": "performance",

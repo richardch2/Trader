@@ -132,10 +132,11 @@ function attachTooltip(svg, { lines, win, x, y, m, iw, ih, W, yFmt }) {
 }
 
 /** Tiny trend line, green if up over the period, red if down. */
-export function sparkline(box, vals, W = 100, H = 24) {
+/** invert: a rise is bad news (yields, VIX), so a rising line shows red. */
+export function sparkline(box, vals, W = 100, H = 24, invert = false) {
   if (vals.length < 2) return;
   const lo = Math.min(...vals), hi = Math.max(...vals);
   const svg = svgEl("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}` }, box);
   const d = vals.map((v, i) => `${i ? "L" : "M"}${((i / (vals.length - 1)) * (W - 4) + 2).toFixed(1)},${(2 + (1 - (v - lo) / (hi - lo || 1)) * (H - 4)).toFixed(1)}`).join("");
-  svgEl("path", { d, fill: "none", stroke: css(vals.at(-1) >= vals[0] ? "--up" : "--down"), "stroke-width": 1.5, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+  svgEl("path", { d, fill: "none", stroke: css((vals.at(-1) >= vals[0]) !== invert ? "--up" : "--down"), "stroke-width": 1.5, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
 }

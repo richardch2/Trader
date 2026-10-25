@@ -5,7 +5,7 @@ import { cardHead, h, isCrypto } from "../core.js";
 
 const SYMBOL = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 // suggestions for the coin form; any coin Yahoo Finance lists against the dollar works
-const COINS = {
+export const COINS = {
   "BTC-USD": "Bitcoin", "ETH-USD": "Ethereum", "SOL-USD": "Solana", "XRP-USD": "XRP", "BNB-USD": "BNB",
   "DOGE-USD": "Dogecoin", "ADA-USD": "Cardano", "TRX-USD": "TRON", "AVAX-USD": "Avalanche", "LINK-USD": "Chainlink",
   "DOT-USD": "Polkadot", "LTC-USD": "Litecoin", "BCH-USD": "Bitcoin Cash", "XLM-USD": "Stellar", "HBAR-USD": "Hedera",

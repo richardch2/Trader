@@ -6,6 +6,7 @@ import { createContext, RANGES, h, isCrypto } from "./core.js";
 import { longDate } from "./lib/format.js";
 import { connect } from "./lib/db.js";
 import { renderTape } from "./lib/tape.js";
+import { setupSearch } from "./lib/search.js";
 
 const $ = (s) => document.querySelector(s);
 const getJSON = (url) => fetch(url, { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
@@ -45,6 +46,7 @@ async function boot() {
   if (missed.length) $("#failures").textContent = ` Last update missed: ${missed.join(", ")}.`;
 
   buildMenu();
+  setupSearch(() => ctx);
   buildRanges();
   renderAccount();
   if (db.linkError) toast(`Sign-in link didn't work: ${db.linkError}. Request a new one from Sign in.`, true);

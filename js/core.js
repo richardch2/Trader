@@ -25,9 +25,11 @@ export function createContext(config, datasets) {
     tickers: config.tickers || [],
     watchlist: config.watchlist || [],
     crypto: config.crypto || [],
+    macro: config.macro || [],
   };
+  const macroSyms = new Set(lists.macro.map((m) => m.symbol));
   const everyone = [];
-  for (const t of [...lists.tickers, ...lists.watchlist, ...lists.crypto]) {
+  for (const t of [...lists.tickers, ...lists.watchlist, ...lists.crypto, ...lists.macro]) {
     if (!everyone.some((e) => e.symbol === t.symbol)) everyone.push(t);
   }
 
@@ -38,6 +40,8 @@ export function createContext(config, datasets) {
     const s = prices[t.symbol] || {};
     closes[t.symbol] = new Map(Object.entries(s).sort(([a], [b]) => (a < b ? -1 : 1)).map(([d, b]) => [d, b.c]));
     // weekends would shorten the stock periods, so coins keep a calendar of their own
+    // macro series (bond market days differ) don't add days to the stock calendar either
+    if (macroSyms.has(t.symbol)) continue;
     Object.keys(s).forEach((d) => (isCrypto(t.symbol) ? coinDates : allDates).add(d));
   }
   const dates = [...allDates].sort();
@@ -60,7 +64,7 @@ export function createContext(config, datasets) {
     /** The index ETFs from config.json (the overview list). */
     tickers: lists.tickers,
     watchlist: lists.watchlist,
-    /** A named list: "tickers" or "watchlist". */
+    /** A named list: "tickers", "watchlist", "crypto" or "macro". */
     list: (name = "tickers") => lists[name] || [],
     primary: config.primary,
     benchmark,
@@ -95,6 +99,8 @@ export function createContext(config, datasets) {
     },
     ticker: (sym) => everyone.find((t) => t.symbol === sym),
     color: (sym) => colors[sym] || "--muted",
+    /** Yields, VIX and the like: shown, never added to a list. */
+    isMacro: (sym) => macroSyms.has(sym),
     has: (sym) => (closes[sym]?.size || 0) > 0,
     /** Link to a ticker's detail page. */
     href: (sym) => `#${isCrypto(sym) ? "coin" : "ticker"}/${encodeURIComponent(sym)}`,

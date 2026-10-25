@@ -5,6 +5,10 @@ technical signals (a 20-day average crossing the 50-day, price crossing the
 50-day, MACD crossing its signal line, RSI leaving oversold, ...), scores each
 stock and keeps the strongest. Uses none of the Alpha Vantage budget.
 
+While the saved history is short or has gaps, it downloads the last ~4 months of
+daily closes for every Russell 2000 stock from Yahoo Finance in one batch
+(yfinance). iShares' own older holdings files are tried only if that fails.
+
 Index tickers and watchlist stocks are read from data/prices.json. The rest of
 the Russell 2000 come from a closing-price history this fetcher keeps in
 data/picks-history.json, one day per iShares holdings file (see smallcaps.py).
@@ -28,6 +32,7 @@ HISTORY = DATA / "picks-history.json"
 
 KEEP_DAYS = 60          # trading days of Russell 2000 closes to keep (50-day average + room for crosses)
 BACKFILL_PER_RUN = 30   # older holdings files to try per run while history is short
+YAHOO_PERIOD = "4mo"    # Yahoo history to fetch while history is short (~84 trading days)
 MIN_DAYS = 21           # fewest closes a stock needs to be scanned
 MIN_PRICE = 5.0         # ideas only for stocks at or above this price
 CROSS_WITHIN = 3        # a cross counts if it happened in the last few sessions
@@ -240,6 +245,43 @@ def backfill(hist, no_data):
     return True, problem
 
 
+def yahoo_symbol(sym):
+    """Holdings write share classes as 'MOG A' or 'BRK.B'; Yahoo writes MOG-A, BRK-B."""
+    return sym.replace(" ", "-").replace(".", "-")
+
+
+def yahoo_backfill(hist, members, period=YAHOO_PERIOD):
+    """Add Yahoo daily closes for every member to hist. Returns (days added, problem or None)."""
+    try:
+        import yfinance as yf
+    except ImportError:
+        return 0, "yfinance is not installed"
+    ysyms = {yahoo_symbol(s): s for s in members}
+    try:
+        df = yf.download(list(ysyms), period=period, interval="1d", auto_adjust=False,
+                         actions=False, progress=False, threads=True, group_by="column")
+    except Exception as e:
+        return 0, f"Yahoo batch download failed: {type(e).__name__}: {e}"[:300]
+    if df is None or df.empty or "Close" not in df:
+        return 0, "Yahoo returned no prices"
+    closes = df["Close"]
+    before = len(hist)
+    got = 0
+    for ts, row in closes.iterrows():
+        d = ts.date().isoformat()
+        day = {}
+        for ysym, c in row.items():
+            if c == c and c is not None and c > 0:  # c == c drops NaN
+                day[ysyms.get(ysym, ysym)] = round(float(c), 2)
+        if len(day) < len(members) // 2:  # a holiday or a half-empty answer
+            continue
+        got = max(got, len(day))
+        # keep a day the holdings file already gave; Yahoo fills the rest
+        hist[d] = {**day, **hist.get(d, {})}
+    print(f"  picks: Yahoo gave {len(closes)} days for up to {got} of {len(members)} stocks; history {before} -> {len(hist)} days")
+    return len(hist) - before, None
+
+
 # ---------- run ----------
 
 def read(name):
@@ -260,8 +302,10 @@ def run(config, client, previous):
         hist[small["asOf"]] = closing(small["prices"])
     if not hist and not prices:
         raise RuntimeError("no prices or holdings to scan yet; run prices and smallcaps first")
-    if hist and backfill_ok and len(hist) < KEEP_DAYS:
-        backfill_ok, problem = backfill(hist, no_data)
+    if members and len(hist) < KEEP_DAYS:
+        added, problem = yahoo_backfill(hist, members)
+        if not added and backfill_ok and hist:
+            backfill_ok, problem = backfill(hist, no_data)
     if hist:
         save_history(hist, no_data, backfill_ok)
     dates = sorted(hist)[-KEEP_DAYS:]

@@ -6,12 +6,14 @@ trading day by a GitHub Action. Live at **<https://richardch2.github.io/Trader/>
 Everything is driven by `config.json`: which tickers to track, the watchlist, the pages in the menu and the
 cards on each, and which data fetchers run each day.
 
-**Pages:** Overview (`#overview`), Top 10 (`#top10`, the day's biggest Russell 2000 gainers), Picks
-(`#picks`, daily ideas from moving averages, MACD and RSI), Watchlist (`#watchlist`), and a detail page for any
-ticker (`#ticker/IWM`), opened by tapping a row or a mover.
+**Pages:** Overview (`#overview`, with the macro backdrop: 10-year yield, VIX, dollar), Top 10 (`#top10`, the
+day's biggest Russell 2000 gainers), Picks (`#picks`, daily ideas from moving averages, MACD and RSI), Watchlist
+(`#watchlist`), Crypto (`#crypto`), and a detail page for any ticker (`#ticker/IWM`) or coin (`#coin/BTC-USD`),
+opened by tapping a row, a mover, the scrolling ticker under the menu, or the search button (🔍) in the menu bar.
 
-Stocks are added to the watchlist from the site itself (Add buttons on the Top 10, an Add-a-ticker box, and
-each ticker's page), stored in a free Supabase database with email sign-in. See *Hosted watchlist* below.
+Stocks and coins are added from the site itself (Add buttons on the Top 10, the Add-a-ticker and Add-a-coin
+boxes, and each ticker's page), stored in a free Supabase database with email sign-in. See *Hosted watchlist*
+below.
 
 ## Install as an app
 
@@ -26,7 +28,7 @@ file it loads, always trying the network first so updates show up straight away.
 ## Layout
 
 ```
-config.json              tickers, watchlist, pages + cards, fetchers, API limits
+config.json              tickers, watchlist, crypto, macro, pages + cards, fetchers, API limits
 index.html, styles.css   page shell and styles
 manifest.webmanifest     app name, icons and colors for installing; sw.js keeps it working offline
 js/main.js               loads config + data, builds the menu, mounts the current page's cards
@@ -52,7 +54,10 @@ data/                    fetcher output, committed by the workflow
    (*Settings → Secrets and variables → Actions*). It's used only for tickers Yahoo doesn't return.
    Change the order in `config.json` → `api.priceSources`.
 2. **Pages** — *Settings → Pages*: deploy from branch **main**, folder **/ (root)**.
-3. **Data** — *Actions → Update data → Run workflow*. After that it runs Mon–Fri around 6:20pm Eastern.
+3. **Data** — *Actions → Update data → Run workflow*. After that it runs Mon–Fri at 22:20 UTC (6:20pm
+   Eastern in summer, 5:20pm in winter), plus a prices-and-signals run Saturday and Sunday at 14:20 UTC for
+   coins. Each run also checks the site (`scripts/check_site.py`) and stops before committing if a page would
+   break.
 
 ## Hosted watchlist (Supabase)
 
@@ -70,8 +75,8 @@ buttons are hidden.
    The anon key is meant to be public; the database rules decide who can write.
 5. Open the site, **Sign in** (top right), and use the emailed link.
 
-The daily job reads the hosted list too, so stocks you add get price history from the next run. The list is
-capped at 15 stocks to stay within the free API budget.
+The daily job reads the hosted list too, so stocks and coins you add get price history from the next run.
+Coins are stored as Yahoo pairs (`SOL-USD`) and shown on the Crypto page. The list is capped at 50 entries.
 
 ## Daily top 10
 
@@ -100,11 +105,12 @@ The Picks page lists the 10 highest scores of +3 or more (stocks of $5 and up), 
 every watchlist stock's signals; each ticker's page shows its price with the 20- and 50-day averages. These are
 mechanical signals, not advice. Thresholds are constants at the top of the file.
 
-Watchlist and index stocks use their full price history from `data/prices.json`. For the rest, the fetcher keeps
-60 days of Russell 2000 closes in `data/picks-history.json` (about 800 KB, not loaded by the page), one day per
-iShares holdings file, so history builds one trading day per run: picks start after 21 trading days, and the
-50-day signals after about 53. iShares doesn't serve older holdings files (it answers every date with the latest),
-which the fetcher detected and recorded as `"backfill": false`; set it back to `true` to try again.
+Watchlist, index and coin prices come from their full history in `data/prices.json`. For the rest, the fetcher
+keeps 60 days of Russell 2000 closes in `data/picks-history.json` (about 800 KB, not loaded by the page). Each
+run adds that day's iShares holdings file; while the history is shorter than 60 days, it also downloads about
+4 months of daily closes for every Russell 2000 stock from Yahoo in one batch (`yfinance`), so picks don't wait
+weeks for history to build. iShares doesn't serve older holdings files, so that older fallback is off
+(`"backfill": false`).
 
 If you set up the hosted watchlist before the Picks page existed, run `supabase/allow-picks-source.sql` once in
 the SQL Editor so stocks can be added from it.
@@ -139,8 +145,15 @@ These can't be removed from the site.
 ]
 ```
 
-Index tickers are fetched first, so with the free key (25 calls a day, 8 used by the index list) keep the
-watchlist to about 15 stocks; anything past the budget is skipped that day and noted in the page footer.
+Prices come from Yahoo with no daily limit, so the watchlist can be as long as you like. Anything that fails
+to download is noted in the page footer.
+
+**Crypto** — `crypto` lists the coins pinned on the Crypto page (Yahoo pairs such as `BTC-USD`). Coins
+trade every day, so their pages count periods in calendar days (1M = 30 days) instead of trading days.
+
+**Macro backdrop** — `macro` lists the series on the Overview's macro card: `kind` is `"yield"` (moves shown
+in basis points) or `"level"` (moves in %), `hint` a line under the tile. Rises show red there, since higher
+yields, VIX or dollar are headwinds for small caps.
 
 **Index tickers** — add to `tickers`. They appear on the Overview chart and table.
 
@@ -152,7 +165,7 @@ watchlist to about 15 stocks; anything past the budget is skipped that day and n
 
 `id` is the address (`#sectors`), `title` the menu label, `heading` the page title (default: `title`).
 `"hidden": true` keeps a page out of the menu (the ticker page works this way); `"ranges": false` hides
-the period buttons on that page.
+the period buttons on that page; `"calendar": "crypto"` counts periods in calendar days.
 
 **Rearrange or remove cards** — reorder or delete entries in a page's `cards`. `"width"` is `"full"` or
 `"half"`.
@@ -162,16 +175,17 @@ you can write `$primary`, `$benchmark`, or `$route` (the ticker in the address, 
 
 | Card | Options |
 |---|---|
+| `macro` | `title`, `note`, `days` (trend line length) — tiles for each series in `config.macro` |
 | `headline` | `a`, `b`, `aName`, `bName` (defaults: `primary` vs `benchmark`). Renders as the page heading. |
-| `performance` | `title`, `note`, `list` (`tickers` or `watchlist`) or `symbols: [...]`, `highlight: [...]` (`[]` = all bold) |
+| `performance` | `title`, `note`, `list` (`tickers`, `watchlist` or `crypto`) or `symbols: [...]`, `highlight: [...]` (`[]` = all bold) |
 | `spread` | `title`, `note`, `a`, `b` — return of `a` minus return of `b` |
 | `pair` | `title`, `note`, `series: [{symbol, label}, {symbol, label}]` |
 | `table` | `title`, `note`, `list`, `columns: [{key, label, days}]`, `sparkDays`, `editable` (Edit list link) |
 | `movers` | `title`, `note`, `list` (default `watchlist`), `days` (1 = today), `count` per side |
 | `ticker` | `symbol` (default `$route`) — key figures, price chart, and Add/Remove watchlist button |
 | `topgainers` | `title`, `note`, `count` (default 10) — the day's top Russell 2000 gainers with Add buttons |
-| `addticker` | `title`, `note` — add any ticker to the hosted watchlist, with Russell 2000 suggestions |
-| `picks` | `title`, `note`, `list` (`picks`, `cautions`, `watchlist` or `tickers`), `count` — technical signals with scores |
+| `addticker` | `title`, `note`, `list` (`crypto` for the coin version) — add to the hosted list, with suggestions |
+| `picks` | `title`, `note`, `list` (`picks`, `cautions`, `watchlist`, `crypto` or `tickers`), `count` — technical signals with scores |
 | `technicals` | `symbol` (default `$route`) — price with 20- and 50-day averages, RSI, MACD and the day's signals |
 
 For example, a second spread card for small-cap value against the S&P 500:
@@ -248,14 +262,16 @@ def run(config, client, previous):
 - Put anything that didn't come back in `"failures"`; the page footer lists them.
 - Raise an exception if nothing usable came back — the run is marked failed and the saved file is left alone.
 
-**API budget.** The free tier allows 25 calls a day and 5 a minute (`api.dailyBudget`,
-`api.minIntervalSeconds`). Prices use one call per ticker, so 8 today. Fetchers run in the order listed;
-put the most important first. A paid key just needs a higher `dailyBudget` and lower `minIntervalSeconds`.
+**Alpha Vantage budget.** Alpha Vantage is only a backup now. Its free tier allows 25 calls a day and 5 a
+minute (`api.dailyBudget`, `api.minIntervalSeconds`); it's used only for stocks Yahoo doesn't return, never
+for coins or indexes. Fetchers run in the order listed.
 
 ## Run locally
 
 ```sh
-ALPHAVANTAGE_API_KEY=xxx python scripts/update.py          # all fetchers
-ALPHAVANTAGE_API_KEY=xxx python scripts/update.py smallcaps   # just one
-python -m http.server 8000                                 # then open http://localhost:8000
+pip install yfinance
+python scripts/update.py                  # all fetchers (add ALPHAVANTAGE_API_KEY=xxx for the backup)
+python scripts/update.py smallcaps        # just one
+python scripts/check_site.py              # the same checks the workflow runs
+python -m http.server 8000                # then open http://localhost:8000
 ```
