@@ -3,7 +3,7 @@
 // Network first for everything on this site, so a new deploy or data update shows
 // up straight away; the last good copy is served when the network is down.
 // Other sites (fonts, the database) are left to the browser.
-const CACHE = "small-cap-tracker-v4";
+const CACHE = "small-cap-tracker-v5";
 const SHELL = ["./", "index.html", "styles.css", "config.json", "manifest.webmanifest", "icons/icon-192.png"];
 
 self.addEventListener("install", (e) => {

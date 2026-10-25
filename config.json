@@ -131,6 +131,10 @@
     {
       "name": "picks",
       "enabled": true
+    },
+    {
+      "name": "earnings",
+      "enabled": true
     }
   ],
   "pages": [
@@ -348,6 +352,22 @@
       ]
     },
     {
+      "id": "portfolio",
+      "title": "Portfolio",
+      "heading": "My portfolio",
+      "ranges": false,
+      "cards": [
+        {
+          "type": "positions",
+          "width": "full"
+        },
+        {
+          "type": "alerts",
+          "width": "full"
+        }
+      ]
+    },
+    {
       "id": "ticker",
       "title": "Ticker",
       "hidden": true,
@@ -355,6 +375,11 @@
         {
           "type": "ticker",
           "width": "full"
+        },
+        {
+          "type": "alerts",
+          "width": "full",
+          "symbol": "$route"
         },
         {
           "type": "technicals",
@@ -386,6 +411,11 @@
         {
           "type": "ticker",
           "width": "full"
+        },
+        {
+          "type": "alerts",
+          "width": "full",
+          "symbol": "$route"
         },
         {
           "type": "technicals",

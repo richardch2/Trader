@@ -8,7 +8,7 @@ cards on each, and which data fetchers run each day.
 
 **Pages:** Overview (`#overview`, with the macro backdrop: 10-year yield, VIX, dollar), Top 10 (`#top10`, the
 day's biggest Russell 2000 gainers), Picks (`#picks`, daily ideas from moving averages, MACD and RSI), Watchlist
-(`#watchlist`), Crypto (`#crypto`), and a detail page for any ticker (`#ticker/IWM`) or coin (`#coin/BTC-USD`),
+(`#watchlist`), Crypto (`#crypto`), Portfolio (`#portfolio`: your positions and price alerts), and a detail page for any ticker (`#ticker/IWM`) or coin (`#coin/BTC-USD`),
 opened by tapping a row, a mover, the scrolling ticker under the menu, or the search button (🔍) in the menu bar.
 
 Stocks and coins are added from the site itself (Add buttons on the Top 10, the Add-a-ticker and Add-a-coin
@@ -42,6 +42,8 @@ scripts/fetchers/*.py    one file per kind of data (prices, smallcaps = Russell 
                          picks = technical signals)
 supabase/setup.sql       one-time database setup for the hosted watchlist
 supabase/push.sql        one-time setup for notifications; supabase/functions/notify-picks sends them
+supabase/alerts-positions.sql  private price alerts and positions (one row set per signed-in person)
+supabase/functions/request-update  starts a prices-only update when an editor adds a stock or coin
 data/                    fetcher output, committed by the workflow
 .github/workflows/       daily "Update data" job
 ```
@@ -133,6 +135,41 @@ One-time setup (until it's done the Notify button stays hidden):
    `supabase/functions/notify-picks/index.ts` (or `supabase functions deploy notify-picks` with the CLI).
 3. Wait for the next 15-minute run (or call the function once) so it creates its keys.
 
+## Earnings dates
+
+`scripts/fetchers/earnings.py` saves the next report date for Russell 2000 and watchlist stocks in
+`data/earnings.json`. With an Alpha Vantage key it's one call a day (`EARNINGS_CALENDAR`, every US company for
+the next 3 months); without one it asks Yahoo about the stocks on screen (watchlist, picks, top 10). Tables
+show an "Earnings Nov 5" chip for reports within 14 days (orange within 3), and ticker pages show the date.
+
+## Price alerts, positions and reminders
+
+Signed-in people (any email) can keep private **price alerts** and **positions**; nobody else can read them.
+
+- **Alerts**: "closes above $X" or "closes below $Y" (fire once, then turn off), or "moves at least N% in a
+  day" (at most once a day). Set them on any ticker or coin page, or on Portfolio. They're checked against
+  each new `data/prices.json`, so after the evening update (and weekend coin runs).
+- **Positions**: shares and average cost per stock or coin. Portfolio shows value, day change, total gain and
+  weight. A position in something no list tracks is added to the watchlist or Crypto (editors) so it gets prices.
+- **Earnings reminders**: around 6pm New York time the evening before, for watchlist stocks and your own
+  positions reporting the next trading day (Friday evening covers Monday).
+
+All three arrive as push notifications from `notify-picks`, the same function that announces new picks; turn
+notifications on from the Picks or Portfolio page. Setup: run `supabase/alerts-positions.sql` once, then deploy
+the updated `supabase/functions/notify-picks`.
+
+## Prices right after adding a stock (optional)
+
+By default a newly added stock or coin gets prices at the next scheduled update. To fetch them within about
+2 minutes instead:
+
+1. GitHub → *Settings → Developer settings → Fine-grained tokens → Generate new token*: repository
+   access **Only select repositories → Trader**, permission **Actions: Read and write**. Copy the token.
+2. Supabase → *Edge Functions → Secrets*: add `GITHUB_DISPATCH_TOKEN` with that token.
+3. Deploy `supabase/functions/request-update` (already deployed for this site).
+
+The site calls it after an editor adds something; it asks GitHub at most once a minute.
+
 ## Common changes (config only)
 
 **Watchlist in config.json** — besides the hosted list, stocks can be pinned in `watchlist`. `added` (the
@@ -184,6 +221,8 @@ you can write `$primary`, `$benchmark`, or `$route` (the ticker in the address, 
 | `movers` | `title`, `note`, `list` (default `watchlist`), `days` (1 = today), `count` per side |
 | `ticker` | `symbol` (default `$route`) — key figures, price chart, and Add/Remove watchlist button |
 | `topgainers` | `title`, `note`, `count` (default 10) — the day's top Russell 2000 gainers with Add buttons |
+| `alerts` | `title`, `note`, `symbol` (`$route` on ticker pages; leave out for all your alerts) — set and list price alerts |
+| `positions` | `title`, `note` — your holdings: value, day change, gain, weight; add, edit (tap a row) and remove |
 | `addticker` | `title`, `note`, `list` (`crypto` for the coin version) — add to the hosted list, with suggestions |
 | `picks` | `title`, `note`, `list` (`picks`, `cautions`, `watchlist`, `crypto` or `tickers`), `count` — technical signals with scores |
 | `technicals` | `symbol` (default `$route`) — price with 20- and 50-day averages, RSI, MACD and the day's signals |

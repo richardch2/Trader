@@ -2,7 +2,7 @@
 // score, the signals behind it, and a button to add it to the hosted watchlist.
 // Options: title, note, list ("picks" default, "cautions", "watchlist", "crypto" or "tickers"), count,
 // notify (default true on the picks list: the "Notify me" control for new picks)
-import { cardHead, h, addCell } from "../core.js";
+import { cardHead, h, addCell, earningsBadge } from "../core.js";
 import { pct, money, tone, date } from "../lib/format.js";
 import { pushState, enablePush, disablePush } from "../lib/push.js";
 
@@ -71,6 +71,7 @@ export default function picks(opts, ctx) {
         const sym = h("td", "sym");
         const a = h("a", null, r.symbol); a.href = ctx.href(r.symbol);
         sym.append(a);
+        const eb = earningsBadge(ctx, r.symbol); if (eb) sym.append(eb);
         tr.append(h("td", "rank muted", String(i + 1)), sym, h("td", "name left hide-md", r.name || ""));
         if (r.waiting) {
           const td = h("td", "waiting", `Signals start once there are ${MIN_DAYS} days of prices.`);

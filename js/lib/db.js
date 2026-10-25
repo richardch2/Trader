@@ -81,6 +81,47 @@ export async function connect(settings) {
       if (error) fail(error);
     },
 
+    // ---------- price alerts and positions (supabase/alerts-positions.sql), private to each person ----------
+    /** [{id, symbol, kind: "above"|"below"|"move", value, active, created_at, fired_at, fired_price}] */
+    async listAlerts() {
+      const { data, error } = await client.from("alerts").select("*").order("created_at");
+      if (error) fail(error);
+      return data;
+    },
+    async addAlert({ symbol, kind, value }) {
+      const { error } = await client.from("alerts").insert({ symbol, kind, value });
+      if (error) fail(error);
+    },
+    async removeAlert(id) {
+      const { error } = await client.from("alerts").delete().eq("id", id);
+      if (error) fail(error);
+    },
+    /** [{id, symbol, shares, cost, opened}] */
+    async listPositions() {
+      const { data, error } = await client.from("positions").select("id,symbol,shares,cost,opened").order("symbol");
+      if (error) fail(error);
+      return data;
+    },
+    /** Add a position, or replace the shares and cost of one already held. */
+    async savePosition({ symbol, shares, cost }) {
+      const { error } = await client.from("positions")
+        .upsert({ user_id: session.user.id, symbol, shares, cost, updated_at: new Date().toISOString() }, { onConflict: "user_id,symbol" });
+      if (error) fail(error);
+    },
+    async removePosition(id) {
+      const { error } = await client.from("positions").delete().eq("id", id);
+      if (error) fail(error);
+    },
+    /** Ask for a prices-only update now (editors; needs supabase/functions/request-update). */
+    async requestUpdate() {
+      try {
+        const { data, error } = await client.functions.invoke("request-update", { body: {} });
+        return error ? { dispatched: false, reason: error.message } : data;
+      } catch (e) {
+        return { dispatched: false, reason: e.message };
+      }
+    },
+
     // ---------- push notifications (supabase/push.sql) ----------
     /** The sender's public key, or null if notifications aren't set up. */
     async pushKey() {
@@ -115,6 +156,9 @@ function disabled(reason = null) {
     canEdit: false,
     onAuthChange() {},
     async list() { return []; },
+    async listAlerts() { return []; },
+    async listPositions() { return []; },
+    async requestUpdate() { return { dispatched: false }; },
     async pushKey() { return null; },
   };
 }

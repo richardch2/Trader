@@ -179,6 +179,31 @@ export function cardHead(el, title, note) {
   return { head, title: h2, note: left.querySelector(".note"), tools: right };
 }
 
+const DAY = 864e5;
+const todayISO = () => {   // today in New York, where the market keeps its calendar
+  const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return p;
+};
+
+/** Next earnings report for a stock: {date, time, estimate, days} or null (none known, or already past). */
+export function nextEarnings(ctx, sym) {
+  const e = ctx.data.earnings?.dates?.[sym];
+  if (!e?.date) return null;
+  const days = Math.round((Date.parse(e.date) - Date.parse(todayISO())) / DAY);
+  return days < 0 ? null : { ...e, days };
+}
+
+/** "Earnings Nov 5" chip for a stock reporting within `within` days, else null. */
+export function earningsBadge(ctx, sym, within = 14) {
+  const e = nextEarnings(ctx, sym);
+  if (!e || e.days > within) return null;
+  const when = e.days === 0 ? "today" : e.days === 1 ? "tomorrow"
+    : new Date(e.date + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const b = h("span", "earn-badge" + (e.days <= 3 ? " soon" : ""), `Earnings ${when}`);
+  b.title = `Reports ${e.date}${e.time ? ` (${e.time})` : ""}${e.estimate != null ? `, EPS estimate ${e.estimate}` : ""}`;
+  return b;
+}
+
 /** Shorthand for creating an HTML element with a class and text. */
 export function h(tag, cls, text) {
   const n = document.createElement(tag);

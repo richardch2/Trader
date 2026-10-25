@@ -1,6 +1,6 @@
 // One ticker in detail: key figures and its price over the selected period.
 // Options: symbol (default "$route", the ticker in the page address, e.g. #ticker/IWM)
-import { cardHead, h, isCrypto } from "../core.js";
+import { cardHead, h, isCrypto, nextEarnings } from "../core.js";
 import { lineChart } from "../lib/charts.js";
 import { pct, pts, money, compact, tone, longDate, date } from "../lib/format.js";
 
@@ -86,6 +86,11 @@ export default function ticker(opts, ctx) {
         ["Period low", money(lo), `${pct(last.c / lo - 1)} from low`],
         ...(avgVol > 0 ? [["Avg. daily volume", compact(avgVol), word]] : []),   // indexes such as ^VIX have none
       ];
+      const earn = nextEarnings(ctx, sym);
+      if (earn) {
+        const when = earn.days === 0 ? "today" : earn.days === 1 ? "tomorrow" : `in ${earn.days} days`;
+        items.push(["Next earnings", longDate(earn.date), [when, earn.time, earn.estimate != null ? `EPS est. ${earn.estimate}` : null].filter(Boolean).join(" · ")]);
+      }
       if (info?.added) {
         const since = ctx.retSince(sym, info.added);
         items.push(["Since added", pct(since), longDate(info.added), since]);

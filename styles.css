@@ -346,3 +346,63 @@ div.signals-col { margin: 0 0 16px; }
   .macro-tile .macro-spark { grid-column: 2; grid-row: 2 / 4; width: 96px; }
   .macro-hint { display: none; }
 }
+
+/* ---------- earnings chip beside a symbol ---------- */
+.earn-badge {
+  display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; vertical-align: 1px;
+  font: 500 10.5px/1.6 var(--sans); white-space: nowrap; color: var(--muted); border: 1px solid var(--line);
+}
+.earn-badge.soon { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* ---------- price alerts ---------- */
+.alert-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.alert-row {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 4px 12px; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px;
+}
+.alert-row .sym { font: 500 14px var(--mono); color: var(--fg); text-decoration: none; }
+.alert-row .sym:hover { color: var(--accent); }
+.alert-row.fired .alert-what { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+.alert-status { font-size: 12px; white-space: nowrap; }
+.alert-form, .position-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+.alert-form .sym-input { width: 110px; }
+.alert-form select, .alert-value { font: 14px var(--sans); }
+.alert-form select {
+  color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+}
+.alert-value { width: 110px; }
+.alert-push { margin: 10px 0 0; font-size: 13px; }
+.accent-link { color: var(--accent); }
+@media (max-width: 480px) {
+  .alert-row { grid-template-columns: 1fr auto; }
+  .alert-status { grid-column: 1; grid-row: 2; }
+  .alert-row .btn { grid-column: 2; grid-row: 1 / 3; }
+}
+
+/* ---------- positions ---------- */
+.position-form .sym-input { width: 170px; }
+.position-form input[type=number] { width: 140px; }
+.cell-sub { font-size: 11.5px; opacity: .85; }
+table.positions td { vertical-align: top; }
+@media (max-width: 560px) {
+  .position-form { display: grid; grid-template-columns: 1fr 1fr; }
+  .position-form .sym-input { grid-column: 1 / -1; width: auto; }
+  .position-form input[type=number] { width: auto; }
+}
+
+/* ---------- phone fit: placeholders, sign-out icon, menu scroll hint ---------- */
+.sym-input::placeholder { text-transform: none; }
+.signout-btn { display: inline-flex; align-items: center; gap: 6px; }
+.signout-btn svg { display: none; }
+@media (max-width: 560px) {
+  .signout-btn svg { display: block; }
+  .signout-btn span { display: none; }
+  .signout-btn { width: 32px; height: 32px; justify-content: center; border-radius: 8px; }
+  /* fade the menu's right edge so it's clear more items scroll into view */
+  .menu {
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    padding-right: 20px;
+  }
+  table.positions th, table.positions td { padding-left: 6px; padding-right: 6px; }
+}

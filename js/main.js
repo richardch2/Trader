@@ -54,7 +54,7 @@ async function boot() {
     try { sessionStorage.setItem("welcomed", db.email); } catch {}
     toast(db.canEdit ? `Signed in as ${db.email}.` : `Signed in as ${db.email} (view only).`);
   }
-  db.onAuthChange(() => { renderAccount(); route(); });
+  db.onAuthChange(async () => { renderAccount(); await buildContext(); route(); });
   addEventListener("hashchange", route);
   let t;
   addEventListener("resize", () => { clearTimeout(t); t = setTimeout(renderAll, 120); });
@@ -64,9 +64,15 @@ async function boot() {
 
 // ---------- context and the hosted watchlist ----------
 async function buildContext() {
-  let rows = [];
+  let rows = [], alerts = [], positions = [];
   try { rows = await db.list(); }
   catch (e) { toast(`Couldn't load the watchlist: ${e.message}`, true); }
+  if (db.email) {   // private to the signed-in person
+    [alerts, positions] = await Promise.all([
+      db.listAlerts().catch((e) => { console.warn("alerts:", e); return []; }),
+      db.listPositions().catch((e) => { console.warn("positions:", e); return []; }),
+    ]);
+  }
   // hosted rows first; stocks listed only in config.json stay as fixed entries.
   // Coins (BTC-USD…) share the hosted list but get a page of their own.
   const hosted = rows.map((r) => ({ ...r, hosted: true }));
@@ -80,12 +86,26 @@ async function buildContext() {
   ctx.onChange(() => { syncRanges(); renderAll(); });
   ctx.db = db;
   ctx.toast = toast;
+  ctx.alerts = alerts;
+  ctx.positions = positions;
+  /** Run a change to the private lists, then reload them and redraw the page. */
+  ctx.changePrivate = async (fn, message) => {
+    await fn(db);
+    if (message) toast(message);
+    await buildContext();
+    await route();
+  };
   /** On the watchlist, or on the crypto list for a coin. */
   ctx.onWatchlist = (sym) => ctx.list(isCrypto(sym) ? "crypto" : "watchlist").some((w) => w.symbol === sym);
   /** Add a stock to the hosted watchlist, then redraw the page. */
-  ctx.addToWatchlist = async (item) => {
+  ctx.addToWatchlist = async (item, { quiet = false } = {}) => {
     await db.add(item);
-    toast(`${item.symbol} added to ${isCrypto(item.symbol) ? "Crypto" : "the watchlist"}. Prices arrive with the next daily update.`);
+    // ask for a prices-only update now, so the chart doesn't wait for the evening run
+    const r = await db.requestUpdate();
+    const where = isCrypto(item.symbol) ? "Crypto" : "the watchlist";
+    if (!quiet) toast(r?.dispatched
+      ? `${item.symbol} added to ${where}. Fetching its prices now: reopen the page in about 2 minutes.`
+      : `${item.symbol} added to ${where}. Prices arrive with the next daily update.`);
     await buildContext();
     await route();
   };
@@ -109,8 +129,12 @@ function renderAccount() {
     const who = h("span", "account-who", db.email.split("@")[0]);
     who.title = db.email + (db.canEdit ? "" : " (view only: not in the editors list)");
     if (!db.canEdit) who.append(h("span", "muted", " · view only"));
-    const out = h("button", "link-btn", "Sign out");
-    out.addEventListener("click", () => db.signOut());
+    // on a phone the label shrinks to an icon, leaving the menu room
+    const out = h("button", "link-btn signout-btn");
+    out.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 6l4 4-4 4M16 10H8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Sign out</span>';
+    out.title = `Sign out (${db.email})`;
+    out.setAttribute("aria-label", "Sign out");
+    out.addEventListener("click", () => { if (confirm(`Sign out of ${db.email}?`)) db.signOut(); });
     box.append(who, out);
     return;
   }
@@ -210,8 +234,9 @@ async function route() {
 
 function renderAll() {
   for (const m of mounted) {
-    try { m.card.render(m.el); }
-    catch (e) { console.error(`Card "${m.opts.type}" failed to draw:`, e); }
+    const fail = (e) => console.error(`Card "${m.opts.type}" failed to draw:`, e);
+    try { Promise.resolve(m.card.render(m.el)).catch(fail); }   // some cards draw asynchronously
+    catch (e) { fail(e); }
   }
 }
 

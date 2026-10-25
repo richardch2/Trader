@@ -1,7 +1,7 @@
 // Daily top gainers among Russell 2000 stocks (from data/smallcaps.json), each
 // with a button to add it to the hosted watchlist.
 // Options: title, note, count (default 10)
-import { cardHead, h, addCell } from "../core.js";
+import { cardHead, h, addCell, earningsBadge } from "../core.js";
 import { pct, money, tone, date } from "../lib/format.js";
 
 export default function topgainers(opts, ctx) {
@@ -48,6 +48,7 @@ export default function topgainers(opts, ctx) {
         const sym = h("td", "sym");
         const a = h("a", null, r.symbol); a.href = ctx.href(r.symbol);
         sym.append(a);
+        const eb = earningsBadge(ctx, r.symbol); if (eb) sym.append(eb);
         tr.append(h("td", "rank muted", String(i + 1)), sym, h("td", "name left hide-sm", r.name), h("td", "muted left hide-md", r.sector),
           h("td", null, money(r.price)), h("td", tone(r.change), pct(r.change)));
         if (showAction) tr.append(addCell(ctx, r, "top10"));

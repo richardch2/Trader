@@ -5,7 +5,7 @@
 //   sparkDays – trading days in the trend line (default 63)
 //   editable  – show an "Edit list" link to config.json on GitHub (needs "repo" in config)
 // Watchlist entries may carry "added" (YYYY-MM-DD) and "note"; those columns appear when present.
-import { cardHead, h, editLink } from "../core.js";
+import { cardHead, h, editLink, earningsBadge } from "../core.js";
 import { sparkline } from "../lib/charts.js";
 import { pct, money, tone, date } from "../lib/format.js";
 
@@ -97,6 +97,7 @@ export default function table(opts, ctx) {
         const a = h("a", null, r.sym); a.href = ctx.href(r.sym);
         sym.append(a);
         if (r.sym === ctx.benchmark) sym.append(h("span", "group", "bench"));
+        const eb = earningsBadge(ctx, r.sym); if (eb) sym.append(eb);
         row.append(sym, h("td", "name hide-sm", r.name));
         if (!ctx.has(r.sym)) {
           // on the list but not fetched yet

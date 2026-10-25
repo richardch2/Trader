@@ -32,6 +32,25 @@ class AlphaVantage:
     def remaining(self) -> int:
         return self.budget - self.used
 
+    def get_text(self, function: str, **params) -> str:
+        """For the few functions that answer in CSV (e.g. EARNINGS_CALENDAR)."""
+        if not self.key:
+            raise ApiError("no Alpha Vantage key set")
+        if self.used >= self.budget:
+            raise BudgetExceeded(f"daily budget of {self.budget} calls used up")
+        wait = self.min_interval - (time.monotonic() - self._last)
+        if self._last and wait > 0:
+            time.sleep(wait)
+        qs = urllib.parse.urlencode({"function": function, **params, "apikey": self.key})
+        self.used += 1
+        self._last = time.monotonic()
+        with urllib.request.urlopen(f"{API}?{qs}", timeout=60) as r:
+            text = r.read().decode("utf-8", errors="replace")
+        if text.lstrip().startswith("{"):  # an error or limit message comes back as JSON
+            payload = json.loads(text)
+            raise ApiError(next(iter(payload.values()), "unexpected answer"))
+        return text
+
     def get(self, function: str, **params) -> dict:
         if self.used >= self.budget:
             raise BudgetExceeded(f"daily budget of {self.budget} calls used up")
