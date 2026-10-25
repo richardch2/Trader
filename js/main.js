@@ -5,6 +5,7 @@
 import { createContext, RANGES, h } from "./core.js";
 import { longDate } from "./lib/format.js";
 import { connect } from "./lib/db.js";
+import { renderTape } from "./lib/tape.js";
 
 const $ = (s) => document.querySelector(s);
 const getJSON = (url) => fetch(url, { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
@@ -89,6 +90,7 @@ async function buildContext() {
   };
   /** Only hosted entries can be removed from the site. */
   ctx.canRemove = (sym) => db.canEdit && ctx.watchlist.some((w) => w.symbol === sym && w.hosted);
+  try { renderTape(ctx); } catch (e) { console.error("Trending ticker failed:", e); }
 }
 
 // ---------- account (sign in / out) ----------
