@@ -1,7 +1,9 @@
 """Latest headlines for the stocks and coins the site shows.
 
-Sources, tried in order per symbol: Yahoo Finance's headline RSS feed, then a Google News
-RSS search for the symbol (yfinance's own news call comes back empty from GitHub's servers).
+Sources, tried in order per symbol: a Google News RSS search for the company or coin, then
+Yahoo Finance's headline RSS feed (which often rate-limits GitHub's servers; yfinance's own
+news call comes back empty there). Quote and listing pages are dropped, and the same story
+from several sites is kept once.
 
 Covers the watchlist (including coins added on the site), the pinned coins, today's
 picks, cautions and top 10, and the primary index ETF. Keeps up to 5 headlines per
@@ -12,6 +14,7 @@ Output (data/news.json):
     {failures, items: {SYMBOL: [{title, publisher, url, time: ISO 8601}]}}
 """
 import json
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -95,6 +98,15 @@ def rss(url):
     return out
 
 
+# listing and quote pages, and sites that publish machine-written stock blurbs
+JUNK_TITLE = re.compile(r"stock price, news|quote & history|stock quote|price today|price prediction|live price|price chart", re.I)
+JUNK_PUBLISHERS = {"ad-hoc-news.de", "Ad Hoc News"}
+
+
+def junk(r):
+    return bool(JUNK_TITLE.search(r["title"])) or r["publisher"] in JUNK_PUBLISHERS
+
+
 def yahoo_rss(sym):
     q = urllib.parse.quote(sym)
     rows = rss(f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={q}&region=US&lang=en-US")
@@ -130,9 +142,9 @@ def run(config, client, previous):
     wanted = symbols(config)
     for sym in wanted:
         rows, problems = [], []
-        for source, get in (("yahoo", lambda: yahoo_rss(sym)), ("google", lambda: google_rss(sym, known.get(sym)))):
+        for source, get in (("google", lambda: google_rss(sym, known.get(sym))), ("yahoo", lambda: yahoo_rss(sym))):
             try:
-                rows = [r for r in get() if datetime.fromisoformat(r["time"]) >= cutoff]
+                rows = [r for r in get() if datetime.fromisoformat(r["time"]) >= cutoff and not junk(r)]
             except Exception as e:
                 problems.append(f"{source}: {type(e).__name__}: {e}"[:150])
                 rows = []
@@ -143,8 +155,9 @@ def run(config, client, previous):
         if rows:
             seen, unique = set(), []
             for r in sorted(rows, key=lambda r: r["time"], reverse=True):
-                if r["title"].lower() not in seen:
-                    seen.add(r["title"].lower())
+                key = re.sub(r"[^a-z0-9]+", " ", r["title"].lower())[:60]   # the same story on sister sites
+                if key not in seen:
+                    seen.add(key)
                     unique.append(r)
             items[sym] = unique[:PER_SYMBOL]
         else:
