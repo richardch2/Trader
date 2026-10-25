@@ -46,6 +46,7 @@ def run(config, client, previous, yahoo=None):
     series = (previous or {}).get("series", {})
     sources = dict((previous or {}).get("sources", {}))
     failures = []
+    fallbacks = {}  # SYMBOL: why the earlier sources failed, when a later one worked
     # index tickers first, so they get any limited budget before the watchlist
     symbols = list(dict.fromkeys(t["symbol"] for t in config["tickers"] + config.get("watchlist", [])))
     for sym in symbols:
@@ -61,10 +62,15 @@ def run(config, client, previous, yahoo=None):
                 continue
             series[sym] = dict(sorted({**series.get(sym, {}), **bars}.items()))
             sources[sym] = name
+            if problems:
+                fallbacks[sym] = " | ".join(problems)[:300]
             print(f"  prices {sym}: {len(bars)} days from {name}, {len(series[sym])} saved")
             break
         else:
             failures.append(f"{sym}: " + " | ".join(problems))
+
+    if fallbacks:
+        print(f"  prices: {len(fallbacks)} tickers used a backup source, e.g. {next(iter(fallbacks.items()))}")
 
     if failures and len(failures) == len(symbols):
         raise RuntimeError(f"every ticker failed, e.g. {failures[0]}")
@@ -72,6 +78,7 @@ def run(config, client, previous, yahoo=None):
     wanted = set(symbols)
     return {
         "failures": failures,
+        "fallbacks": fallbacks,
         "sources": {k: v for k, v in sources.items() if k in wanted},
         "series": {k: v for k, v in series.items() if k in wanted},
     }

@@ -10,6 +10,11 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+try:  # installed by the GitHub workflow; without it the direct endpoint is used
+    import yfinance as yf
+except ImportError:
+    yf = None
+
 HOSTS = ["https://query1.finance.yahoo.com", "https://query2.finance.yahoo.com"]
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36",
@@ -48,6 +53,41 @@ class Yahoo:
         """Return {"YYYY-MM-DD": {o,h,l,c,v}} for the last `history` of trading days."""
         # Yahoo writes share classes with a dash (BRK-B), Alpha Vantage with a dot (BRK.B)
         ysym = symbol.replace(".", "-")
+        if yf is not None:
+            try:
+                return self._daily_yfinance(ysym)
+            except Exception as e:
+                first = f"yfinance: {type(e).__name__}: {e}"
+            try:
+                return self._daily_direct(ysym)
+            except Exception as e:
+                raise YahooError(f"{first}; direct: {e}") from None
+        return self._daily_direct(ysym)
+
+    def _daily_yfinance(self, ysym: str) -> dict:
+        """yfinance handles the cookie/crumb check Yahoo applies to requests from servers."""
+        wait = self.min_interval - (time.monotonic() - self._last)
+        if self._last and wait > 0:
+            time.sleep(wait)
+        self.used += 1
+        self._last = time.monotonic()
+        df = yf.Ticker(ysym).history(period=self.history, interval="1d", auto_adjust=False, actions=False)
+        if df is None or df.empty:
+            raise YahooError("no price data in answer")
+        bars = {}
+        for ts, row in df.iterrows():
+            vals = [row.get(k) for k in ("Open", "High", "Low", "Close")]
+            if any(x is None or x != x for x in vals):  # x != x catches NaN
+                continue
+            vol = row.get("Volume")
+            bars[ts.date().isoformat()] = {"o": round(float(vals[0]), 4), "h": round(float(vals[1]), 4),
+                                           "l": round(float(vals[2]), 4), "c": round(float(vals[3]), 4),
+                                           "v": int(vol) if vol == vol and vol is not None else 0}
+        if not bars:
+            raise YahooError("answer had dates but no complete prices")
+        return bars
+
+    def _daily_direct(self, ysym: str) -> dict:
         payload = self._get(f"/v8/finance/chart/{urllib.parse.quote(ysym)}",
                             {"range": self.history, "interval": "1d", "includePrePost": "false"})
         return parse_chart(payload)
