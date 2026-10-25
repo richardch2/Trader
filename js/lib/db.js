@@ -12,7 +12,11 @@ export async function connect(settings) {
   let client;
   try {
     const { createClient } = await import(CDN);
-    client = createClient(settings.url, settings.anonKey, { auth: { persistSession: true, detectSessionInUrl: true, flowType: "implicit" } });
+    client = createClient(settings.url, settings.anonKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" },
+    });
+    // ask the browser not to clear this site's storage (and the session in it) on its own
+    try { navigator.storage?.persist?.(); } catch {}
   } catch (e) {
     console.error("Couldn't load the database client:", e);
     return disabled("Couldn't reach the database.");
