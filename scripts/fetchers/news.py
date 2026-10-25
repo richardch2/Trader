@@ -99,12 +99,13 @@ def rss(url):
 
 
 # listing and quote pages, and sites that publish machine-written stock blurbs
-JUNK_TITLE = re.compile(r"stock price, news|quote & history|stock quote|price today|price prediction|live price|price chart", re.I)
-JUNK_PUBLISHERS = {"ad-hoc-news.de", "Ad Hoc News"}
+JUNK_TITLE = re.compile(r"stock price, news|quote & history|stock quote|price today|price prediction|price forecast|"
+                        r"stock forecast|live price|price chart|stock price and chart|should you buy", re.I)
+JUNK_PUBLISHERS = {"ad-hoc-news.de", "ad hoc news", "stockinvest.us", "vietnam.vn"}
 
 
 def junk(r):
-    return bool(JUNK_TITLE.search(r["title"])) or r["publisher"] in JUNK_PUBLISHERS
+    return bool(JUNK_TITLE.search(r["title"])) or r["publisher"].strip().lower() in JUNK_PUBLISHERS
 
 
 def yahoo_rss(sym):
