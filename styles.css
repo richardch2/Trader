@@ -183,7 +183,7 @@ th.note-col, td.note-col { text-align: left; white-space: normal; min-width: 160
   padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--fg); text-decoration: none; font-variant-numeric: tabular-nums;
 }
 .mover:last-child { border-bottom: 0; }
-.mover .sym { font: 500 14px var(--mono); }
+.mover .sym { font: 500 14px var(--mono); white-space: nowrap; }
 .mover:hover .sym { color: var(--accent); }
 
 /* ticker stats */

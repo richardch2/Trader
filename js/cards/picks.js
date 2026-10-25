@@ -1,6 +1,6 @@
 // Daily ideas from moving averages, MACD and RSI (data/picks.json): each stock with its
 // score, the signals behind it, and a button to add it to the hosted watchlist.
-// Options: title, note, list ("picks" default, "cautions", "watchlist" or "tickers"), count,
+// Options: title, note, list ("picks" default, "cautions", "watchlist", "crypto" or "tickers"), count,
 // notify (default true on the picks list: the "Notify me" control for new picks)
 import { cardHead, h, addCell } from "../core.js";
 import { pct, money, tone, date } from "../lib/format.js";
@@ -11,12 +11,14 @@ const TITLES = {
   cautions: "Weakening",
   watchlist: "Watchlist signals",
   tickers: "Index signals",
+  crypto: "Crypto signals",
 };
 const NOTES = {
   picks: "Russell 2000 stocks ($5 and up) with the strongest buy signals: moving-average and MACD crossovers, RSI rebounds, strength against the index.",
   cautions: "Russell 2000 stocks with the strongest sell signals.",
   watchlist: "Moving averages, MACD and RSI for each stock you watch.",
   tickers: "Moving averages, MACD and RSI for each index ETF.",
+  crypto: "Moving averages, MACD and RSI for each coin, on daily closes.",
 };
 const MIN_DAYS = 21;
 
@@ -138,6 +140,7 @@ export default function picks(opts, ctx) {
   function emptyText() {
     if (!data) return "Signals arrive with the next daily update.";
     if (which === "watchlist") return "Add stocks to the watchlist to see their signals here.";
+    if (which === "crypto") return "Add coins above to see their signals here.";
     if (which === "tickers") return "No index tickers in config.json.";
     if (data.historyDays < MIN_DAYS) {
       return `Building price history for the Russell 2000: ${data.historyDays} of ${MIN_DAYS} days so far. Picks start once there's enough for the moving averages.`;

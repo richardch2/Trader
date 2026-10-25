@@ -1,6 +1,6 @@
 // Sortable table of a list of tickers. Tap a row to open that ticker's page.
 // Options: title, note,
-//   list      – "tickers" (default) or "watchlist"
+//   list      – "tickers" (default), "watchlist" or "crypto"
 //   columns   – return periods: [{key, label, days}] (default 1D, 1W, 1M, 3M)
 //   sparkDays – trading days in the trend line (default 63)
 //   editable  – show an "Edit list" link to config.json on GitHub (needs "repo" in config)
@@ -34,7 +34,7 @@ export default function table(opts, ctx) {
     { key: "spark", label: "Trend", cls: "hide-sm", nosort: true },
     ...(hasNote ? [{ key: "note", label: "Note", text: true, cls: "hide-sm note-col" }] : []),
     // Remove buttons, for hosted watchlist entries when signed in as an editor
-    ...(opts.list === "watchlist" && items.some((t) => ctx.canRemove?.(t.symbol)) ? [{ key: "remove", label: "", nosort: true, cls: "action" }] : []),
+    ...(["watchlist", "crypto"].includes(opts.list) && items.some((t) => ctx.canRemove?.(t.symbol)) ? [{ key: "remove", label: "", nosort: true, cls: "action" }] : []),
   ];
 
   return {
@@ -120,9 +120,9 @@ export default function table(opts, ctx) {
           const td = h("td", "action");
           if (ctx.canRemove(r.sym)) {
             const b = h("button", "btn small ghost", "Remove");
-            b.title = `Remove ${r.sym} from the watchlist`;
+            b.title = `Remove ${r.sym} from ${opts.list === "crypto" ? "Crypto" : "the watchlist"}`;
             b.addEventListener("click", async () => {
-              if (!confirm(`Remove ${r.sym} from the watchlist?`)) return;
+              if (!confirm(`Remove ${r.sym} from ${opts.list === "crypto" ? "Crypto" : "the watchlist"}?`)) return;
               b.disabled = true;
               try { await ctx.removeFromWatchlist(r.sym); }
               catch (e) { ctx.toast(e.message, true); b.disabled = false; }

@@ -272,7 +272,7 @@ def run(config, client, previous):
             return [b["c"] for _, b in sorted(s.items())]
         return [hist[d][sym] for d in dates if sym in hist[d]]
 
-    named = {t["symbol"]: t.get("name") for t in config["tickers"] + config.get("watchlist", [])}
+    named = {t["symbol"]: t.get("name") for t in config["tickers"] + config.get("watchlist", []) + config.get("crypto", [])}
     bench = closes(config.get("primary", "IWM"))
 
     def row(sym):

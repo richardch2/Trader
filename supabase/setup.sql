@@ -22,12 +22,12 @@ create table if not exists public.watchlist (
   created_at timestamptz not null default now()
 );
 
--- Keep the list within the free Alpha Vantage budget (25 calls a day, 8 used by the index ETFs).
+-- Stocks and coins share this list. Prices come from Yahoo Finance, so the cap is just a sanity limit.
 create or replace function public.watchlist_limit() returns trigger
 language plpgsql as $$
 begin
-  if (select count(*) from public.watchlist) >= 15 then
-    raise exception 'The watchlist is full (15 stocks). Remove one first.';
+  if (select count(*) from public.watchlist) >= 50 then
+    raise exception 'The list is full (50 stocks and coins). Remove one first.';
   end if;
   return new;
 end $$;

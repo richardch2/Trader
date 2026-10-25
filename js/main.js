@@ -2,7 +2,7 @@
 // config.pages, and mounts the cards of whichever page the address points to
 // (#overview, #watchlist, #ticker/IWM). A card that fails shows an error in its
 // own box and the rest of the page carries on.
-import { createContext, RANGES, h } from "./core.js";
+import { createContext, RANGES, h, isCrypto } from "./core.js";
 import { longDate } from "./lib/format.js";
 import { connect } from "./lib/db.js";
 import { renderTape } from "./lib/tape.js";
@@ -11,7 +11,7 @@ const $ = (s) => document.querySelector(s);
 const getJSON = (url) => fetch(url, { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
 const modules = {};
 let ctx, pages, mounted = [];
-let config, datasets, db, staticWatchlist;
+let config, datasets, db, staticWatchlist, staticCrypto;
 
 async function boot() {
   config = await getJSON("config.json");
@@ -31,6 +31,7 @@ async function boot() {
   datasets = Object.fromEntries(fetchers.map((f, i) => [f.name, loaded[i]]));
   db = database;
   staticWatchlist = config.watchlist || [];
+  staticCrypto = config.crypto || [];
 
   const hasPrices = Object.values(datasets.prices?.series || {}).some((s) => Object.keys(s).length);
   if (!hasPrices) {
@@ -40,7 +41,6 @@ async function boot() {
   }
 
   await buildContext();
-  $("#updated").textContent = `Data through ${longDate(ctx.dates.at(-1))}`;
   const missed = fetchers.flatMap((f) => (datasets[f.name]?.failures || []).map((m) => m.split(":")[0]));
   if (missed.length) $("#failures").textContent = ` Last update missed: ${missed.join(", ")}.`;
 
@@ -65,31 +65,36 @@ async function buildContext() {
   let rows = [];
   try { rows = await db.list(); }
   catch (e) { toast(`Couldn't load the watchlist: ${e.message}`, true); }
-  // hosted rows first; stocks listed only in config.json stay as fixed entries
+  // hosted rows first; stocks listed only in config.json stay as fixed entries.
+  // Coins (BTC-USD…) share the hosted list but get a page of their own.
   const hosted = rows.map((r) => ({ ...r, hosted: true }));
-  const watchlist = [...hosted, ...staticWatchlist.filter((w) => !hosted.some((r) => r.symbol === w.symbol))];
-  const state = ctx?.state;
-  ctx = createContext({ ...config, watchlist }, datasets);
+  const merge = (fixed, mine) => [...mine, ...fixed.filter((w) => !mine.some((r) => r.symbol === w.symbol))];
+  const watchlist = merge(staticWatchlist.filter((w) => !isCrypto(w.symbol)), hosted.filter((r) => !isCrypto(r.symbol)));
+  const crypto = merge(staticCrypto, hosted.filter((r) => isCrypto(r.symbol)));
+  const state = ctx?.state, calendar = ctx?.calendar;
+  ctx = createContext({ ...config, watchlist, crypto }, datasets);
   if (state) Object.assign(ctx.state, state);
+  if (calendar) ctx.calendar = calendar;
   ctx.onChange(() => { syncRanges(); renderAll(); });
   ctx.db = db;
   ctx.toast = toast;
-  ctx.onWatchlist = (sym) => ctx.watchlist.some((w) => w.symbol === sym);
+  /** On the watchlist, or on the crypto list for a coin. */
+  ctx.onWatchlist = (sym) => ctx.list(isCrypto(sym) ? "crypto" : "watchlist").some((w) => w.symbol === sym);
   /** Add a stock to the hosted watchlist, then redraw the page. */
   ctx.addToWatchlist = async (item) => {
     await db.add(item);
-    toast(`${item.symbol} added to the watchlist. Prices arrive with the next daily update.`);
+    toast(`${item.symbol} added to ${isCrypto(item.symbol) ? "Crypto" : "the watchlist"}. Prices arrive with the next daily update.`);
     await buildContext();
     await route();
   };
   ctx.removeFromWatchlist = async (sym) => {
     await db.remove(sym);
-    toast(`${sym} removed from the watchlist.`);
+    toast(`${sym} removed from ${isCrypto(sym) ? "Crypto" : "the watchlist"}.`);
     await buildContext();
     await route();
   };
   /** Only hosted entries can be removed from the site. */
-  ctx.canRemove = (sym) => db.canEdit && ctx.watchlist.some((w) => w.symbol === sym && w.hosted);
+  ctx.canRemove = (sym) => db.canEdit && ctx.list(isCrypto(sym) ? "crypto" : "watchlist").some((w) => w.symbol === sym && w.hosted);
   try { renderTape(ctx); } catch (e) { console.error("Trending ticker failed:", e); }
 }
 
@@ -159,6 +164,10 @@ async function route() {
   let page = pages.find((p) => p.id === id);
   if (!page) { page = pages[0]; arg = null; }
   ctx.route = { page: page.id, arg };
+  // crypto pages count periods in calendar days, since coins trade on weekends too
+  ctx.calendar = page.calendar || (isCrypto(arg) ? "crypto" : "stocks");
+  $("#updated").textContent = ctx.lastDate() ? `Data through ${longDate(ctx.lastDate())}` : "";
+  syncRanges();
 
   // menu: highlight the current page (a hidden page highlights its parent)
   // a ticker page belongs under Watchlist if the ticker is on the watchlist, then Picks or Top 10 if listed there, else the first page
@@ -234,7 +243,11 @@ function buildRanges() {
 }
 
 function syncRanges() {
-  $("#ranges").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.textContent === ctx.state.range)));
+  $("#ranges").querySelectorAll("button").forEach((b) => {
+    const r = RANGES.find((x) => x.id === b.textContent);
+    b.disabled = !ctx.rangeAvailable(r);
+    b.setAttribute("aria-pressed", String(b.textContent === ctx.state.range));
+  });
 }
 
 // ---------- install as an app (tablet, phone, desktop) ----------

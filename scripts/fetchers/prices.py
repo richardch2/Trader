@@ -1,4 +1,7 @@
-"""Daily open/high/low/close/volume for every ticker and watchlist stock in config.json.
+"""Daily open/high/low/close/volume for every ticker, watchlist stock and coin in config.json.
+
+Coins are Yahoo pairs such as BTC-USD; coins added on the site arrive through the
+hosted watchlist, the same as stocks.
 
 Tries Yahoo Finance first (no key, no daily limit, a year of history per call),
 then Alpha Vantage for any ticker Yahoo doesn't return. Set the order in
@@ -34,6 +37,8 @@ def parse(payload: dict) -> dict:
 def from_alphavantage(client, sym):
     if client is None:
         raise RuntimeError("no Alpha Vantage key set")
+    if sym.endswith("-USD"):  # coins come from Yahoo only; don't spend the daily budget on them
+        raise RuntimeError("Alpha Vantage daily series doesn't cover coins")
     return parse(client.get("TIME_SERIES_DAILY", symbol=sym, outputsize="compact"))
 
 
@@ -48,7 +53,7 @@ def run(config, client, previous, yahoo=None):
     failures = []
     fallbacks = {}  # SYMBOL: why the earlier sources failed, when a later one worked
     # index tickers first, so they get any limited budget before the watchlist
-    symbols = list(dict.fromkeys(t["symbol"] for t in config["tickers"] + config.get("watchlist", [])))
+    symbols = list(dict.fromkeys(t["symbol"] for t in config["tickers"] + config.get("watchlist", []) + config.get("crypto", [])))
     for sym in symbols:
         problems = []
         for name in order:

@@ -9,7 +9,10 @@ export const pts = (x, signed = true) =>
   ok(x) ? `${signed && x > 0 ? "+" : ""}${(x * 100).toFixed(1)} pts` : "—";
 
 export const money = (x) =>
-  ok(x) ? x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
+  !ok(x) ? "—"
+    // coins under a dollar (DOGE, SHIB…) need more than two decimals to show anything
+    : Math.abs(x) > 0 && Math.abs(x) < 1 ? x.toLocaleString("en-US", { maximumSignificantDigits: 4, minimumSignificantDigits: 2 })
+    : x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const compact = (x) =>
   ok(x) ? Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(x) : "—";

@@ -1,6 +1,6 @@
 // Trending ticker: a strip under the menu bar that scrolls the day's moves.
 // It shows today's Russell 2000 top gainers (when the latest update found any),
-// then every tracked ticker and watchlist stock, biggest moves first. Each item
+// then every tracked ticker, watchlist stock and coin, biggest moves first. Each item
 // links to its ticker page. Hovering or touching pauses it; with reduced motion
 // turned on it stays still and scrolls sideways by hand instead.
 import { h } from "../core.js";
@@ -19,7 +19,7 @@ function trending(ctx) {
     items.push({ symbol: g.symbol, price: g.price, change: g.change, hot: true });
   }
   const tracked = [];
-  for (const t of [...ctx.tickers, ...ctx.watchlist]) {
+  for (const t of [...ctx.tickers, ...ctx.watchlist, ...ctx.list("crypto")]) {
     if (seen.has(t.symbol) || !ctx.has(t.symbol)) continue;
     seen.add(t.symbol);
     tracked.push(t);

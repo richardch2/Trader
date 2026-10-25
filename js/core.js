@@ -13,22 +13,35 @@ export const RANGES = [
 
 const PALETTE = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7"];
 
+/** Coins are Yahoo pairs against the dollar, e.g. BTC-USD. */
+export const isCrypto = (sym) => /-USD$/.test(sym || "");
+
+/** Crypto trades every day, so its periods are calendar days: 1M = 30, 3M = 91, 1Y = 365. */
+const calendarDays = (r) => Math.round((r.days * 365) / 252);
+const minusDays = (d, n) => new Date(Date.parse(d + "T00:00:00Z") - n * 864e5).toISOString().slice(0, 10);
+
 export function createContext(config, datasets) {
   const lists = {
     tickers: config.tickers || [],
     watchlist: config.watchlist || [],
+    crypto: config.crypto || [],
   };
-  const everyone = [...lists.tickers, ...lists.watchlist.filter((w) => !lists.tickers.some((t) => t.symbol === w.symbol))];
+  const everyone = [];
+  for (const t of [...lists.tickers, ...lists.watchlist, ...lists.crypto]) {
+    if (!everyone.some((e) => e.symbol === t.symbol)) everyone.push(t);
+  }
 
   const prices = datasets.prices?.series || {};
   const closes = {};
-  const allDates = new Set();
+  const allDates = new Set(), coinDates = new Set();
   for (const t of everyone) {
     const s = prices[t.symbol] || {};
-    closes[t.symbol] = new Map(Object.entries(s).map(([d, b]) => [d, b.c]));
-    Object.keys(s).forEach((d) => allDates.add(d));
+    closes[t.symbol] = new Map(Object.entries(s).sort(([a], [b]) => (a < b ? -1 : 1)).map(([d, b]) => [d, b.c]));
+    // weekends would shorten the stock periods, so coins keep a calendar of their own
+    Object.keys(s).forEach((d) => (isCrypto(t.symbol) ? coinDates : allDates).add(d));
   }
   const dates = [...allDates].sort();
+  const cryptoDates = [...coinDates].sort();
   const benchmark = config.benchmark;
 
   // colors are assigned per list, so each page's chart uses the full palette
@@ -51,8 +64,14 @@ export function createContext(config, datasets) {
     list: (name = "tickers") => lists[name] || [],
     primary: config.primary,
     benchmark,
-    /** Every trading day with data for any ticker, oldest first. */
+    /** Every trading day with data for any stock or ETF, oldest first. */
     dates,
+    /** Every day with data for any coin (crypto trades seven days a week). */
+    cryptoDates,
+    /** Which calendar the selected period counts in: "stocks" or "crypto". Set per page. */
+    calendar: "stocks",
+    /** Last day with data in the current calendar. */
+    lastDate: () => (ctx.calendar === "crypto" ? cryptoDates : dates).at(-1),
     /** The current page and its argument, e.g. {page: "ticker", arg: "IWM"} for #ticker/IWM. */
     route: { page: null, arg: null },
 
@@ -78,14 +97,14 @@ export function createContext(config, datasets) {
     color: (sym) => colors[sym] || "--muted",
     has: (sym) => (closes[sym]?.size || 0) > 0,
     /** Link to a ticker's detail page. */
-    href: (sym) => `#ticker/${encodeURIComponent(sym)}`,
+    href: (sym) => `#${isCrypto(sym) ? "coin" : "ticker"}/${encodeURIComponent(sym)}`,
 
     /** Raw daily bars {o,h,l,c,v} keyed by date. */
     bars: (sym) => prices[sym] || {},
     /** [{d, c}] of daily closes for a ticker, oldest first. */
     series(sym) {
       const m = closes[sym] || new Map();
-      return dates.filter((d) => m.has(d)).map((d) => ({ d, c: m.get(d) }));
+      return [...m].map(([d, c]) => ({ d, c }));
     },
     lastClose: (sym) => ctx.series(sym).at(-1)?.c ?? null,
 
@@ -102,10 +121,19 @@ export function createContext(config, datasets) {
     },
 
     range: () => RANGES.find((r) => r.id === ctx.state.range) || RANGES[1],
-    rangeAvailable: (r) => r.days === Infinity || dates.length > r.days,
+    rangeAvailable(r) {
+      if (r.days === Infinity) return true;
+      if (ctx.calendar !== "crypto") return dates.length > r.days;
+      return cryptoDates.length > 1 && cryptoDates[0] <= minusDays(cryptoDates.at(-1), calendarDays(r) - 3);
+    },
     /** Dates in the selected period. */
     window() {
       const r = ctx.range();
+      if (ctx.calendar === "crypto") {
+        if (r.days === Infinity || !cryptoDates.length) return cryptoDates;
+        const from = minusDays(cryptoDates.at(-1), calendarDays(r));
+        return cryptoDates.filter((d) => d >= from);
+      }
       return r.days === Infinity ? dates : dates.slice(-(r.days + 1));
     },
     /** Change since the start of the selected period: [{d, v}] with v = 0.05 for +5%. */

@@ -62,6 +62,43 @@
     }
   ],
   "watchlist": [],
+  "crypto": [
+    {
+      "symbol": "BTC-USD",
+      "name": "Bitcoin",
+      "group": "Crypto"
+    },
+    {
+      "symbol": "ETH-USD",
+      "name": "Ethereum",
+      "group": "Crypto"
+    },
+    {
+      "symbol": "SOL-USD",
+      "name": "Solana",
+      "group": "Crypto"
+    },
+    {
+      "symbol": "XRP-USD",
+      "name": "XRP",
+      "group": "Crypto"
+    },
+    {
+      "symbol": "BNB-USD",
+      "name": "BNB",
+      "group": "Crypto"
+    },
+    {
+      "symbol": "DOGE-USD",
+      "name": "Dogecoin",
+      "group": "Crypto"
+    },
+    {
+      "symbol": "ADA-USD",
+      "name": "Cardano",
+      "group": "Crypto"
+    }
+  ],
   "fetchers": [
     {
       "name": "prices",
@@ -215,6 +252,78 @@
       ]
     },
     {
+      "id": "crypto",
+      "title": "Crypto",
+      "heading": "Crypto",
+      "calendar": "crypto",
+      "cards": [
+        {
+          "type": "table",
+          "width": "full",
+          "title": "Coins",
+          "list": "crypto",
+          "columns": [
+            {
+              "key": "d1",
+              "label": "1D",
+              "days": 1
+            },
+            {
+              "key": "w1",
+              "label": "1W",
+              "days": 7
+            },
+            {
+              "key": "m1",
+              "label": "1M",
+              "days": 30
+            },
+            {
+              "key": "m3",
+              "label": "3M",
+              "days": 91
+            }
+          ],
+          "sparkDays": 91,
+          "note": "Prices in US dollars at each day's close (UTC). Crypto trades every day, so periods are calendar days."
+        },
+        {
+          "type": "addticker",
+          "width": "full",
+          "list": "crypto"
+        },
+        {
+          "type": "movers",
+          "width": "half",
+          "title": "Today's biggest moves",
+          "list": "crypto",
+          "days": 1
+        },
+        {
+          "type": "movers",
+          "width": "half",
+          "title": "This month",
+          "list": "crypto",
+          "days": 30
+        },
+        {
+          "type": "performance",
+          "width": "full",
+          "title": "Crypto performance",
+          "list": "crypto",
+          "highlight": [
+            "BTC-USD",
+            "ETH-USD"
+          ]
+        },
+        {
+          "type": "picks",
+          "width": "full",
+          "list": "crypto"
+        }
+      ]
+    },
+    {
       "id": "ticker",
       "title": "Ticker",
       "hidden": true,
@@ -239,6 +348,37 @@
           "highlight": [
             "$route",
             "$benchmark"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "coin",
+      "title": "Coin",
+      "hidden": true,
+      "parent": "crypto",
+      "calendar": "crypto",
+      "cards": [
+        {
+          "type": "ticker",
+          "width": "full"
+        },
+        {
+          "type": "technicals",
+          "width": "full"
+        },
+        {
+          "type": "performance",
+          "width": "full",
+          "title": "Against Bitcoin and stocks",
+          "symbols": [
+            "$route",
+            "BTC-USD",
+            "$benchmark"
+          ],
+          "highlight": [
+            "$route",
+            "BTC-USD"
           ]
         }
       ]

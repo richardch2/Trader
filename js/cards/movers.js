@@ -3,7 +3,7 @@
 import { cardHead, h } from "../core.js";
 import { pct, money, tone } from "../lib/format.js";
 
-const PERIOD = { 1: "today", 5: "this week", 21: "this month" };
+const PERIOD = { 1: "today", 5: "this week", 7: "this week", 21: "this month", 30: "this month" };
 
 export default function movers(opts, ctx) {
   const items = ctx.list(opts.list || "watchlist");
@@ -13,7 +13,7 @@ export default function movers(opts, ctx) {
 
   return {
     mount(el) {
-      cardHead(el, opts.title || "Biggest moves", opts.note || `Largest price changes ${PERIOD[days] || `over ${days} trading days`}.`);
+      cardHead(el, opts.title || "Biggest moves", opts.note || `Largest price changes ${PERIOD[days] || `over ${days} days`}.`);
       body = h("div", "movers");
       el.append(body);
     },
