@@ -1,0 +1,32 @@
+name: Research data
+
+# Run by hand. Exports ~2 years of Russell 2000 prices to the "research" branch,
+# for testing the pick scoring offline. Never touches main or the live site.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet yfinance
+      - run: python scripts/research/export_history.py
+      - name: Push to the research branch
+        run: |
+          cp research/history.json.gz /tmp/history.json.gz
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan research
+          git rm -rfq .
+          cp /tmp/history.json.gz history.json.gz
+          git add history.json.gz
+          git commit -qm "Research history $(date -u +%Y-%m-%d)"
+          git push -f origin research
