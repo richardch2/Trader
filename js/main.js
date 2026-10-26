@@ -108,13 +108,14 @@ function waitForPrices(symbol) {
 
 // ---------- context and the hosted watchlist ----------
 async function buildContext() {
-  let rows = [], alerts = [], positions = [];
+  let rows = [], alerts = [], positions = [], trades = [];
   try { rows = await db.list(); }
   catch (e) { toast(`Couldn't load the watchlist: ${e.message}`, true); }
   if (db.email) {   // private to the signed-in person
-    [alerts, positions] = await Promise.all([
+    [alerts, positions, trades] = await Promise.all([
       db.listAlerts().catch((e) => { console.warn("alerts:", e); return []; }),
       db.listPositions().catch((e) => { console.warn("positions:", e); return []; }),
+      db.listTrades().catch((e) => { console.warn("trades:", e); return []; }),
     ]);
   }
   // hosted rows first; stocks listed only in config.json stay as fixed entries.
@@ -132,6 +133,7 @@ async function buildContext() {
   ctx.toast = toast;
   ctx.alerts = alerts;
   ctx.positions = positions;
+  ctx.trades = trades;
   /** Run a change to the private lists, then reload them and redraw the page. */
   ctx.changePrivate = async (fn, message) => {
     await fn(db);

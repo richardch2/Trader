@@ -444,3 +444,23 @@ table.positions td { vertical-align: top; }
 .sector-detail > h3 { margin: 0 0 4px; font-size: 14px; }
 .mover-name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14ch; }
 @media (max-width: 480px) { .sector-grid { grid-template-columns: 1fr 1fr; } .mover-name { display: none; } }
+
+/* ---------- risk chips, relative volume ---------- */
+.risk-badge {
+  display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; vertical-align: 1px;
+  font: 500 10.5px/1.6 var(--sans); white-space: nowrap; border: 1px solid currentColor; cursor: help;
+}
+.risk-badge.neg { color: var(--down); background: color-mix(in srgb, var(--down) 7%, transparent); }
+.risk-badge.warn { color: var(--s5); background: color-mix(in srgb, var(--s5) 8%, transparent); }
+.signal.warn { color: var(--s5); border-color: color-mix(in srgb, var(--s5) 40%, transparent); background: color-mix(in srgb, var(--s5) 8%, transparent); }
+td.relvol { font-variant-numeric: tabular-nums; }
+td.relvol.hot { font-weight: 600; color: var(--accent); }
+td.relvol.quiet { color: var(--muted); }
+.live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--up); margin-right: 6px; vertical-align: 1px; animation: live-pulse 2s ease-in-out infinite; }
+@keyframes live-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+h3.subhead { margin: 4px 0 8px; font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.risk-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px 20px; margin: 12px 0 14px; }
+.trade-form { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.trade-form[hidden] { display: none; }
+.trade-label { flex-basis: 100%; margin: 0 0 2px; font-size: 13px; color: var(--muted); }

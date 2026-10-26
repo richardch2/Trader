@@ -15,12 +15,10 @@ Output (data/smallcaps.json):
      members: {SYMBOL: [name, sector]}, prices: {SYMBOL: price}, failures}
 """
 import csv
-import json
 import io
 import re
 import urllib.request
 from datetime import datetime
-from pathlib import Path
 
 # iShares Russell 2000 ETF (IWM) holdings; tried in order
 HOLDINGS_URLS = [
@@ -32,7 +30,6 @@ TOP_N = 10
 MIN_PRICE = 1.0        # skip sub-$1 stocks
 MAX_CHANGE = 2.0       # skip moves over +200%, almost always a reverse split or bad print
 LOW_BAND = (1.0, 5.0)  # the "$1-$5" list: at least $1, under $5
-HISTORY = Path(__file__).resolve().parent.parent.parent / "data" / "picks-history.json"
 
 
 def num(s):
@@ -101,9 +98,17 @@ def parse_holdings(text: str):
     return as_of, stocks
 
 
+# set by run(): {symbol: {vol, avgVol, relVol, dollarVol}} for the ranked day, from picks.liquidity
+LIQ = {}
+MIN_DOLLAR_VOL = 1_000_000     # average daily trading ($) to make the list, so a move means something
+MIN_DOLLAR_VOL_LOW = 500_000   # the same for the $1-$5 list
+
+
 def rank(stocks, prev_prices, band=None):
-    """Top gainers; with band=(lo, hi), only stocks priced lo or more and under hi."""
+    """Top gainers; with band=(lo, hi), only stocks priced lo or more and under hi.
+    With volume data, thinly traded stocks are left out and each row gets its volume."""
     lo, hi = band or (MIN_PRICE, float("inf"))
+    floor = MIN_DOLLAR_VOL_LOW if band else MIN_DOLLAR_VOL
     rows = []
     for sym, s in stocks.items():
         prev = prev_prices.get(sym)
@@ -112,28 +117,24 @@ def rank(stocks, prev_prices, band=None):
         change = s["price"] / prev - 1
         if change > MAX_CHANGE:
             continue
+        v = LIQ.get(sym)
+        if LIQ and (not v or v["dollarVol"] < floor):
+            continue
         rows.append({"symbol": sym, "name": s["name"], "sector": s["sector"], "price": s["price"],
-                     "prev": prev, "change": round(change, 5), "weight": s["weight"]})
+                     "prev": prev, "change": round(change, 5), "weight": s["weight"],
+                     "vol": v and v["vol"], "relVol": v and v["relVol"], "dollarVol": v and v["dollarVol"]})
     rows.sort(key=lambda r: r["change"], reverse=True)
     return rows[:TOP_N]
 
 
-def history_gainers(stocks):
-    """Rank from the last two days of the Russell 2000 closing history that picks.py keeps
-    (from Yahoo), for when the holdings files can't be compared yet. None if unavailable."""
-    try:
-        saved = json.loads(HISTORY.read_text())
-    except (OSError, ValueError):
-        return None
-    dates = saved.get("dates") or []
+def history_gainers(stocks, hist):
+    """Rank from the last two days of the Russell 2000 closing history (picks.py keeps it,
+    from Yahoo), for when the holdings files can't be compared. None if unavailable."""
+    dates = sorted(hist)
     if len(dates) < 2:
         return None
-    last, prev = {}, {}
-    for sym, closes in saved.get("closes", {}).items():
-        if closes[-1] and closes[-2]:
-            last[sym], prev[sym] = closes[-1], closes[-2]
-    day = {s: {**stocks.get(s, {"name": "", "sector": "", "weight": None}), "price": c}
-           for s, c in last.items() if s in stocks}
+    last, prev = hist[dates[-1]], hist[dates[-2]]
+    day = {s: {**stocks[s], "price": c} for s, c in last.items() if s in stocks and prev.get(s)}
     return dates[-1], dates[-2], rank(day, prev), rank(day, prev, LOW_BAND)
 
 
@@ -166,9 +167,24 @@ def run(config, client, previous):
     failures = []
     gainers_low = []
     ranked_as_of = as_of
-    hist = history_gainers(stocks)
-    kept = previous.get("asOf") == as_of and previous.get("gainers") and "gainersLow" in previous
-    if previous.get("prices") and previous.get("asOf") and previous["asOf"] < as_of:
+    # daily closes and volumes for every member (shared with picks.py), topped up from Yahoo
+    from fetchers import picks
+    try:
+        history, _, problem = picks.refresh_history(members, as_of, prices)
+    except Exception as e:
+        history, problem = {}, f"{type(e).__name__}: {e}"
+    if problem:
+        failures.append(f"history: {problem}"[:300])
+    newer_holdings = bool(previous.get("prices") and previous.get("asOf") and previous["asOf"] < as_of)
+    day = as_of if newer_holdings or not history else max(history)
+    LIQ.clear()
+    LIQ.update(picks.liquidity(history, day) if history else {})
+    if not LIQ:
+        failures.append("no volume data: lists are not filtered for trading volume")
+    hist = history_gainers(stocks, history)
+    kept = (previous.get("asOf") == as_of and previous.get("gainers") and "gainersLow" in previous
+            and (previous.get("minDollarVol") or not LIQ))
+    if newer_holdings:
         # a newer holdings file: compare it with the last one
         gainers, source, prev_as_of = rank(stocks, previous["prices"]), "holdings", previous["asOf"]
         gainers_low = rank(stocks, previous["prices"], LOW_BAND)
@@ -197,6 +213,7 @@ def run(config, client, previous):
         "source": source,
         "gainers": gainers,
         "gainersLow": gainers_low,
+        "minDollarVol": {"all": MIN_DOLLAR_VOL, "low": MIN_DOLLAR_VOL_LOW} if LIQ else None,
         "members": members,
         "prices": prices,
         "failures": failures,

@@ -79,6 +79,10 @@ def main(argv) -> int:
         except Exception as e:
             report(f"{name} failed: {type(e).__name__}: {e}")
             continue
+        if previous is not None and result is previous:   # nothing new (e.g. intraday after the close)
+            print(f"[{name}] unchanged")
+            ok += 1
+            continue
         result["updated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
         for msg in result.get("failures", []):
             report(f"{name} {msg}", level="warning")

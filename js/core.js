@@ -204,6 +204,35 @@ export function earningsBadge(ctx, sym, within = 14) {
   return b;
 }
 
+/** A chip for dilution or squeeze risk (data/risk.json): the most serious flag, with the
+ *  rest in its tooltip. Null when the stock has no flags. */
+export function riskBadge(ctx, sym) {
+  const r = ctx.data.risk?.stocks?.[sym];
+  if (!r?.flags?.length) return null;
+  const f = r.flags.find((x) => x.tone === "neg") || r.flags[0];
+  const b = h("span", `risk-badge ${f.tone}`, f.short + (r.flags.length > 1 ? ` +${r.flags.length - 1}` : ""));
+  b.title = r.flags.map((x) => x.text).join("\n");
+  return b;
+}
+
+/** Earnings and risk chips after a symbol link. */
+export function symbolBadges(ctx, sym, cell) {
+  for (const b of [earningsBadge(ctx, sym), riskBadge(ctx, sym)]) if (b) cell.append(b);
+}
+
+/** Relative volume as "2.4×": bold when trading at least twice the usual amount. */
+export function relVolCell(rel, cls = "") {
+  const td = h("td", `relvol ${cls}${rel >= 2 ? " hot" : rel != null && rel < 0.7 ? " quiet" : ""}`, rel == null ? "—" : `${rel.toFixed(1)}×`);
+  td.title = rel == null ? "No volume data" : `Volume ${rel.toFixed(1)} times its 20-day average`;
+  return td;
+}
+
+/** A dollar amount as $1.2M / $340K. */
+export function compactUsd(x) {
+  if (x == null) return "—";
+  return x >= 1e9 ? `$${(x / 1e9).toFixed(1)}B` : x >= 1e6 ? `$${(x / 1e6).toFixed(1)}M` : x >= 1e3 ? `$${Math.round(x / 1e3)}K` : `$${Math.round(x)}`;
+}
+
 /** Shorthand for creating an HTML element with a class and text. */
 export function h(tag, cls, text) {
   const n = document.createElement(tag);

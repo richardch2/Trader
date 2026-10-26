@@ -27,6 +27,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from fetchers.smallcaps import download, parse_holdings
+from fetchers import track as trackrec
 
 DATA = Path(__file__).resolve().parent.parent.parent / "data"
 HISTORY = DATA / "picks-history.json"
@@ -41,6 +42,8 @@ CROSS_WITHIN = 3        # a cross counts if it happened in the last few sessions
 TOP_PICKS = 10
 TOP_CAUTIONS = 5
 MIN_SCORE = 3
+MIN_DOLLAR_VOL = 1_000_000    # ideas need this much average daily trading ($), so a move means something
+MIN_DOLLAR_VOL_LOW = 500_000  # the same for $1-$5 stocks
 
 
 # ---------- indicators (lists aligned with the closes, None until there is enough data) ----------
@@ -179,7 +182,13 @@ def analyze(closes, bench=None):
 
 # ---------- Russell 2000 closing-price history ----------
 
+# Daily share volume, {date: {symbol: shares}}, kept in the same file as the closes.
+# load_history fills it, yahoo_backfill adds to it and save_history writes it.
+VOLUMES = {}
+
+
 def load_history():
+    VOLUMES.clear()
     try:
         saved = json.loads(HISTORY.read_text())
     except (OSError, ValueError):
@@ -189,19 +198,49 @@ def load_history():
         for d, c in zip(saved["dates"], closes):
             if c is not None:
                 hist[d][sym] = c
+    for sym, vols in (saved.get("volumes") or {}).items():
+        for d, v in zip(saved["dates"], vols):
+            if v is not None:
+                VOLUMES.setdefault(d, {})[sym] = v
     return hist, set(saved.get("noData", [])), saved.get("backfill", True)
 
 
 def save_history(hist, no_data, backfill_ok):
     dates = sorted(hist)[-KEEP_DAYS:]
     syms = sorted({s for d in dates for s in hist[d]})
+    vsyms = sorted({s for d in dates for s in VOLUMES.get(d, {})})
     oldest = dates[0] if dates else ""
     HISTORY.write_text(json.dumps({
         "dates": dates,
         "closes": {s: [hist[d].get(s) for d in dates] for s in syms},
+        "volumes": {s: [VOLUMES.get(d, {}).get(s) for d in dates] for s in vsyms},
         "noData": sorted(d for d in no_data if d >= oldest),
         "backfill": backfill_ok,
     }, separators=(",", ":")))
+
+
+def volume_days():
+    """How many days of the history have volumes for most stocks."""
+    return sum(1 for d in VOLUMES.values() if len(d) > 500)
+
+
+def liquidity(hist, day, n=20, vols=None):
+    """{symbol: {vol, avgVol, relVol, dollarVol}} for `day`: that day's volume, the average
+    over the n sessions before it, and the average daily dollar volume over those sessions."""
+    vols = VOLUMES if vols is None else vols
+    dates = sorted(d for d in hist if d < day)[-n:]
+    today = vols.get(day, {})
+    out = {}
+    for sym in set(today) | {s for d in dates for s in vols.get(d, {})}:
+        past = [(vols[d][sym], hist[d].get(sym)) for d in dates if sym in vols.get(d, {})]
+        if len(past) < 5:
+            continue
+        avg = sum(v for v, _ in past) / len(past)
+        dollars = sum(v * c for v, c in past if c) / len(past)
+        vol = today.get(sym)
+        out[sym] = {"vol": vol, "avgVol": round(avg), "dollarVol": round(dollars),
+                    "relVol": round(vol / avg, 2) if vol is not None and avg > 0 else None}
+    return out
 
 
 def closing(prices):
@@ -267,6 +306,7 @@ def yahoo_backfill(hist, members, period=YAHOO_PERIOD):
     if df is None or df.empty or "Close" not in df:
         return 0, "Yahoo returned no prices"
     closes = df["Close"]
+    volumes = df["Volume"] if "Volume" in df else None
     before = len(hist)
     got = 0
     for ts, row in closes.iterrows():
@@ -280,8 +320,93 @@ def yahoo_backfill(hist, members, period=YAHOO_PERIOD):
         got = max(got, len(day))
         # keep a day the holdings file already gave; Yahoo fills the rest
         hist[d] = {**day, **hist.get(d, {})}
+        if volumes is not None and ts in volumes.index:
+            vday = VOLUMES.setdefault(d, {})
+            for ysym, v in volumes.loc[ts].items():
+                if v == v and v is not None and v > 0:
+                    vday[ysyms.get(ysym, ysym)] = int(v)
     print(f"  picks: Yahoo gave {len(closes)} days for up to {got} of {len(members)} stocks; history {before} -> {len(hist)} days")
     return len(hist) - before, None
+
+
+def refresh_history(members, holdings_day=None, holdings_prices=None):
+    """Load the history, add the latest holdings file, top it up from Yahoo when it is short,
+    missing volumes, or behind, and save it. Returns (hist, no_data, problem or None).
+    Both smallcaps and picks call it; the second call in a run finds nothing to fetch."""
+    hist, no_data, backfill_ok = load_history()
+    problem = None
+    if holdings_day and holdings_prices:
+        hist[holdings_day] = closing(holdings_prices)
+    short = len(hist) < KEEP_DAYS or volume_days() < 40
+    behind = hist and max(VOLUMES, default="") < max(hist)
+    if members and (short or behind):
+        added, problem = yahoo_backfill(hist, members, YAHOO_PERIOD if short else "1mo")
+        if not added and len(hist) < KEEP_DAYS and backfill_ok and hist:
+            backfill_ok, problem = backfill(hist, no_data)
+    if hist:
+        save_history(hist, no_data, backfill_ok)
+    return hist, no_data, problem
+
+
+# ---------- choosing the ideas ----------
+
+def liquid(r, liq, floor):
+    """True if the stock trades enough; with no volume data at all, nothing is filtered."""
+    if not liq:
+        return True
+    v = liq.get(r["symbol"])
+    return bool(v) and v["dollarVol"] >= floor
+
+
+def select(scanned, liq):
+    """The four idea lists from scored rows: picks and cautions at $5 and up, and at $1-$5."""
+    def best(ideas):
+        picks = sorted((r for r in ideas if r["score"] >= MIN_SCORE),
+                       key=lambda r: (r["score"], r["ind"]["mom20"]), reverse=True)[:TOP_PICKS]
+        cautions = sorted((r for r in ideas if r["score"] <= -MIN_SCORE),
+                          key=lambda r: (r["score"], r["ind"]["mom20"]))[:TOP_CAUTIONS]
+        return picks, cautions
+
+    picks, cautions = best([r for r in scanned if r["price"] >= MIN_PRICE and liquid(r, liq, MIN_DOLLAR_VOL)])
+    picks_low, cautions_low = best([r for r in scanned if LOW_BAND[0] <= r["price"] < LOW_BAND[1]
+                                    and liquid(r, liq, MIN_DOLLAR_VOL_LOW)])
+    return {"picks": picks, "cautions": cautions, "picksLow": picks_low, "cautionsLow": cautions_low}
+
+
+def with_volume(r, liq):
+    v = liq.get(r["symbol"]) if liq else None
+    return {**r, "relVol": v and v["relVol"], "dollarVol": v and v["dollarVol"]}
+
+
+def backtest_lists(members, bench_series, period="9mo"):
+    """Rebuild the idea lists for each past day, from a longer Yahoo download kept only in
+    memory: {day: lists}, plus the closes to score them. Used once, to start the track record."""
+    hist, vols = {}, {}
+    saved = dict(VOLUMES)
+    VOLUMES.clear()
+    try:
+        added, problem = yahoo_backfill(hist, members, period)
+        vols = dict(VOLUMES)
+    finally:
+        VOLUMES.clear()
+        VOLUMES.update(saved)
+    if not added:
+        raise RuntimeError(problem or "Yahoo gave no history")
+    dates = sorted(hist)
+    bench_dates = sorted(bench_series)
+    out = {}
+    for i in range(KEEP_DAYS - 1, len(dates) - 1):   # the last day is today's live run
+        window = dates[i - KEEP_DAYS + 1:i + 1]
+        day = dates[i]
+        b = [bench_series[d]["c"] for d in bench_dates if d <= day] or None
+        rows = []
+        for sym in members:
+            cl = [hist[d][sym] for d in window if sym in hist[d]]
+            a = analyze(cl, b)
+            if a:
+                rows.append({"symbol": sym, **a})
+        out[day] = select(rows, liquidity(hist, day, vols=vols))
+    return out, hist
 
 
 # ---------- run ----------
@@ -298,18 +423,9 @@ def run(config, client, previous):
     small = read("smallcaps")
     members = small.get("members", {})
 
-    hist, no_data, backfill_ok = load_history()
-    problem = None
-    if small.get("asOf") and small.get("prices"):
-        hist[small["asOf"]] = closing(small["prices"])
+    hist, no_data, problem = refresh_history(members, small.get("asOf"), small.get("prices"))
     if not hist and not prices:
         raise RuntimeError("no prices or holdings to scan yet; run prices and smallcaps first")
-    if members and len(hist) < KEEP_DAYS:
-        added, problem = yahoo_backfill(hist, members)
-        if not added and backfill_ok and hist:
-            backfill_ok, problem = backfill(hist, no_data)
-    if hist:
-        save_history(hist, no_data, backfill_ok)
     dates = sorted(hist)[-KEEP_DAYS:]
 
     def closes(sym):
@@ -328,18 +444,23 @@ def run(config, client, previous):
         name, sector = members.get(sym) or [named.get(sym), ""]
         return {"symbol": sym, "name": name or named.get(sym) or "", "sector": sector, **a}
 
-    scanned = [r for r in map(row, members) if r]
-    def best(ideas):
-        picks = sorted((r for r in ideas if r["score"] >= MIN_SCORE),
-                       key=lambda r: (r["score"], r["ind"]["mom20"]), reverse=True)[:TOP_PICKS]
-        cautions = sorted((r for r in ideas if r["score"] <= -MIN_SCORE),
-                          key=lambda r: (r["score"], r["ind"]["mom20"]))[:TOP_CAUTIONS]
-        return picks, cautions
+    liq = liquidity(hist, dates[-1]) if dates else {}
+    scanned = [with_volume(r, liq) for r in map(row, members) if r]
+    lists = select(scanned, liq)
+    watch = {s: with_volume(r, liq) for s in named if (r := row(s))}
+    print(f"  picks: {len(scanned)} stocks scanned over {len(dates)} days, volume for {len(liq)}; "
+          + ", ".join(f"{k} {len(v)}" for k, v in lists.items()))
 
-    picks, cautions = best([r for r in scanned if r["price"] >= MIN_PRICE])
-    picks_low, cautions_low = best([r for r in scanned if LOW_BAND[0] <= r["price"] < LOW_BAND[1]])
-    watch = {s: r for s in named if (r := row(s))}
-    print(f"  picks: {len(scanned)} stocks scanned over {len(dates)} days, {len(picks)} picks, {len(cautions)} cautions; $1-$5: {len(picks_low)} picks, {len(cautions_low)} cautions")
+    failures = []
+    if dates and lists:
+        try:
+            track = trackrec.update(lists, dates[-1], hist, prices.get(config.get("primary", "IWM"), {}),
+                                    members, backtest=lambda: backtest_lists(members, prices.get(config.get("primary", "IWM"), {})))
+        except Exception as e:  # the track record never blocks the day's picks
+            track = previous.get("track") if previous else None
+            failures.append(f"track record: {type(e).__name__}: {e}")
+    else:
+        track = None
 
     if not scanned and not watch:
         raise RuntimeError(f"not enough history to scan yet ({len(dates)} of {MIN_DAYS} days)")
@@ -347,11 +468,10 @@ def run(config, client, previous):
         "asOf": max(dates) if dates else None,
         "historyDays": len(dates),
         "scanned": len(scanned),
-        "picks": picks,
-        "cautions": cautions,
-        "picksLow": picks_low,
-        "cautionsLow": cautions_low,
+        **lists,
         "watchlist": watch,
+        "track": track,
+        "minDollarVol": {"picks": MIN_DOLLAR_VOL, "low": MIN_DOLLAR_VOL_LOW} if liq else None,
         "backfillProblem": problem,
-        "failures": [],
+        "failures": failures,
     }

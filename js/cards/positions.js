@@ -2,7 +2,7 @@
 // Private to the signed-in person (supabase/alerts-positions.sql). Adding a position in
 // something no list tracks also adds it to the watchlist or Crypto, so it gets prices.
 // Options: title, note
-import { cardHead, h, isCrypto, earningsBadge } from "../core.js";
+import { cardHead, h, isCrypto, symbolBadges } from "../core.js";
 import { money, pct, tone } from "../lib/format.js";
 import { COINS } from "./addticker.js";
 import { csvLink } from "../lib/csv.js";
@@ -13,7 +13,10 @@ const dollars = (x) => (Math.abs(x) >= 1000 ? Math.round(Math.abs(x)).toLocaleSt
 const usd = (x) => (x == null || !isFinite(x) ? "—" : `${x < 0 ? "−" : ""}$${dollars(x)}`);
 const signedUsd = (x) => (x == null || !isFinite(x) ? "—" : `${x > 0 ? "+" : x < 0 ? "−" : ""}$${dollars(x)}`);
 const exact = (x) => `$${money(x)}`;   // per-share prices and costs keep their cents
+const todayNY = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
 const qty = (n) => Number(n).toLocaleString("en-US", { maximumFractionDigits: 6 });
+
+export { usd, signedUsd, exact, qty, todayNY };
 
 export default function positions(opts, ctx) {
   let summary, tableWrap, formBox, builtFor = null;
@@ -73,7 +76,7 @@ export default function positions(opts, ctx) {
       const sym = h("td", "sym");
       const a = h("a", null, r.symbol); a.href = ctx.href(r.symbol);
       sym.append(a);
-      const eb = earningsBadge(ctx, r.symbol); if (eb) sym.append(eb);
+      symbolBadges(ctx, r.symbol, sym);
       const gain = h("td", tone(r.gain));
       gain.append(signedUsd(r.gain), h("div", "cell-sub", pct(r.gainPct)));
       const day = h("td", tone(r.day));
@@ -109,6 +112,9 @@ export default function positions(opts, ctx) {
     fields.shares.value = r.shares; fields.cost.value = r.cost;
     fields.save.textContent = "Save changes";
     fields.remove.hidden = false; fields.cancel.hidden = false;
+    fields.trade.hidden = false;
+    fields.tradeLabel.textContent = `Record a trade in ${r.symbol}`;
+    fields.tShares.value = ""; fields.tPrice.value = r.price != null ? +r.price.toFixed(4) : "";
     fields.shares.focus();
     formBox.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
@@ -128,12 +134,53 @@ export default function positions(opts, ctx) {
     const save = h("button", "btn", "Add position"); save.type = "submit";
     const remove = h("button", "btn ghost", "Remove"); remove.type = "button"; remove.hidden = true;
     const cancel = h("button", "link-btn", "Cancel"); cancel.type = "button"; cancel.hidden = true;
-    fields = { sym, shares, cost, save, remove, cancel };
+    // buy more or sell part of the position being edited, kept in the trade log
+    const trade = h("form", "position-form trade-form");
+    trade.hidden = true;
+    const tradeLabel = h("p", "trade-label");
+    const tShares = h("input");
+    Object.assign(tShares, { type: "number", inputMode: "decimal", step: "any", min: "0", placeholder: "Shares" });
+    tShares.setAttribute("aria-label", "Shares traded");
+    const tPrice = h("input");
+    Object.assign(tPrice, { type: "number", inputMode: "decimal", step: "any", min: "0", placeholder: "Price each, $" });
+    tPrice.setAttribute("aria-label", "Price per share, dollars");
+    const tDate = h("input");
+    Object.assign(tDate, { type: "date", value: todayNY(), max: todayNY() });
+    tDate.setAttribute("aria-label", "Trade date");
+    const buy = h("button", "btn ghost", "Buy more"); buy.type = "button";
+    const sell = h("button", "btn", "Sell"); sell.type = "button";
+    trade.append(tradeLabel, tShares, tPrice, tDate, buy, sell);
+    fields = { sym, shares, cost, save, remove, cancel, trade, tradeLabel, tShares, tPrice, tDate };
 
     const reset = () => {
       editing = null; f.reset(); sym.readOnly = false;
       save.textContent = "Add position"; remove.hidden = cancel.hidden = true;
+      trade.hidden = true; trade.reset(); tDate.value = todayNY();
     };
+    const doTrade = async (side) => {
+      const p = (ctx.positions || []).find((x) => x.symbol === editing);
+      const n = Number(tShares.value), px = Number(tPrice.value);
+      if (!p) return;
+      if (!(n > 0)) { ctx.toast("Enter how many shares.", true); tShares.focus(); return; }
+      if (!(px >= 0) || tPrice.value === "") { ctx.toast("Enter the price per share.", true); tPrice.focus(); return; }
+      if (side === "sell" && n > Number(p.shares) * 1.000001) { ctx.toast(`You hold ${qty(p.shares)} ${p.symbol}.`, true); tShares.focus(); return; }
+      buy.disabled = sell.disabled = true;
+      try {
+        let msg;
+        await ctx.changePrivate(async (db) => {
+          const r = await db.recordTrade({ symbol: p.symbol, side, shares: n, price: px, date: tDate.value || todayNY() });
+          msg = side === "sell"
+            ? `Sold ${qty(n)} ${p.symbol} at ${exact(px)}: ${signedUsd(Number(r?.realized))} realized.${Number(r?.remaining) ? "" : " Position closed."}`
+            : `Bought ${qty(n)} ${p.symbol} at ${exact(px)}. Now ${qty(r?.remaining)} shares.`;
+        });
+        ctx.toast(msg);
+        reset();
+      } catch (e) {
+        ctx.toast(/record_trade|schema cache/i.test(e.message) ? "The trade log isn't set up yet." : e.message, true);
+      } finally { buy.disabled = sell.disabled = false; }
+    };
+    buy.addEventListener("click", () => doTrade("buy"));
+    sell.addEventListener("click", () => doTrade("sell"));
     cancel.addEventListener("click", reset);
     remove.addEventListener("click", async () => {
       const p = (ctx.positions || []).find((x) => x.symbol === editing);
@@ -163,14 +210,21 @@ export default function positions(opts, ctx) {
           } else extra = ` ${s} isn't tracked, so it shows no price until an editor adds it to a list.`;
         }
         const was = editing;
-        await ctx.changePrivate((db) => db.savePosition({ symbol: s, shares: n, cost: c }),
-          `${was ? "Updated" : "Saved"} ${qty(n)} ${s} at ${exact(c)}.${extra}`);
+        const held = (ctx.positions || []).some((x) => x.symbol === s);
+        await ctx.changePrivate(async (db) => {
+          // a new position is also the first buy in the trade log; edits just correct the numbers
+          if (!was && !held) {
+            try { return await db.recordTrade({ symbol: s, side: "buy", shares: n, price: c, date: todayNY() }); }
+            catch (err) { if (!/record_trade|schema cache/i.test(err.message)) throw err; }
+          }
+          return db.savePosition({ symbol: s, shares: n, cost: c });
+        }, `${was ? "Updated" : "Saved"} ${qty(n)} ${s} at ${exact(c)}.${extra}`);
         reset();
       } catch (err) { ctx.toast(err.message, true); }
       finally { save.disabled = false; }
     });
     f.append(sym, shares, cost, save, remove, cancel);
-    formBox.replaceChildren(f, h("p", "add-hint", "Tap a row to change or remove it. Adding a symbol you already hold replaces its shares and cost."));
+    formBox.replaceChildren(f, trade, h("p", "add-hint", "Tap a row to record a buy or sale (kept in your trade history), or to correct its shares and cost. Adding a symbol you already hold replaces its shares and cost."));
   }
 
   return {

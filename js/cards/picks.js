@@ -2,7 +2,7 @@
 // score, the signals behind it, and a button to add it to the hosted watchlist.
 // Options: title, note, list ("picks" default, "cautions", "picksLow", "cautionsLow" ($1-$5 stocks), "watchlist", "crypto" or "tickers"), count,
 // notify (default true on the picks list: the "Notify me" control for new picks)
-import { cardHead, h, addCell, earningsBadge } from "../core.js";
+import { cardHead, h, addCell, symbolBadges, relVolCell, compactUsd } from "../core.js";
 import { pct, money, tone, date } from "../lib/format.js";
 import { pushState, enablePush, disablePush } from "../lib/push.js";
 
@@ -52,7 +52,8 @@ export default function picks(opts, ctx) {
     render() {
       const list = rows();
       const when = data?.asOf ? ` As of ${date(data.asOf, { weekday: "short", month: "short", day: "numeric" })}.` : "";
-      noteEl.textContent = opts.note || `${NOTES[which] || ""}${when}`;
+      const floor = scan && data?.minDollarVol ? (which.endsWith("Low") ? data.minDollarVol.low : data.minDollarVol.picks) : null;
+      noteEl.textContent = opts.note || `${NOTES[which] || ""}${floor ? ` Trading at least ${compactUsd(floor)} a day.` : ""}${when}`;
       body.replaceChildren();
       if (!list.length) {
         body.append(h("p", "card-empty", emptyText()));
@@ -64,7 +65,7 @@ export default function picks(opts, ctx) {
       table.className = "linked picks";
       const head = document.createElement("tr");
       for (const [label, cls] of [["#", "rank"], ["Ticker"], ["Name", "left hide-md"], ["Price"], ["RSI", "hide-sm"],
-        ["vs 50-day", "hide-sm"], ["Score"], ["Signals", "left signals-col"], ...(showAction ? [["", "action"]] : [])]) {
+        ["vs 50-day", "hide-sm"], ["Rel vol", "hide-sm"], ["Score"], ["Signals", "left signals-col"], ...(showAction ? [["", "action"]] : [])]) {
         head.append(h("th", cls, label));
       }
       table.createTHead().append(head);
@@ -75,16 +76,16 @@ export default function picks(opts, ctx) {
         const sym = h("td", "sym");
         const a = h("a", null, r.symbol); a.href = ctx.href(r.symbol);
         sym.append(a);
-        const eb = earningsBadge(ctx, r.symbol); if (eb) sym.append(eb);
+        symbolBadges(ctx, r.symbol, sym);
         tr.append(h("td", "rank muted", String(i + 1)), sym, h("td", "name left hide-md", r.name || ""));
         if (r.waiting) {
           const td = h("td", "waiting", `Signals start once there are ${MIN_DAYS} days of prices.`);
-          td.colSpan = 5;
+          td.colSpan = 6;
           tr.append(td);
         } else {
           const vs50 = r.ind.sma50 ? r.price / r.ind.sma50 - 1 : null;
           tr.append(h("td", null, money(r.price)), h("td", "hide-sm " + rsiTone(r.ind.rsi), r.ind.rsi?.toFixed(0) ?? "—"),
-            h("td", "hide-sm " + tone(vs50), pct(vs50)), scoreCell(r.score), signalsCell(r.signals));
+            h("td", "hide-sm " + tone(vs50), pct(vs50)), relVolCell(r.relVol, "hide-sm"), scoreCell(r.score), signalsCell(r.signals));
         }
         if (showAction) tr.append(addCell(ctx, r, scan ? "picks" : "manual"));
         tbody.append(tr);

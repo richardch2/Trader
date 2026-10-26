@@ -116,6 +116,29 @@ export async function connect(settings) {
       const { error } = await client.from("positions").delete().eq("id", id);
       if (error) fail(error);
     },
+    // ---------- trade log (supabase/trades.sql) ----------
+    /** [{id, symbol, side, shares, price, cost_basis, realized, traded_on}], newest first; [] before the table exists. */
+    async listTrades() {
+      const { data, error } = await client.from("trades")
+        .select("id,symbol,side,shares,price,cost_basis,realized,traded_on,created_at")
+        .order("traded_on", { ascending: false }).order("created_at", { ascending: false });
+      if (error) {
+        if (/does not exist|schema cache/i.test(error.message)) return [];
+        fail(error);
+      }
+      return data;
+    },
+    /** Record a buy or sale and update the position with it. Returns {realized, remaining}. */
+    async recordTrade({ symbol, side, shares, price, date }) {
+      const { data, error } = await client.rpc("record_trade",
+        { p_symbol: symbol, p_side: side, p_shares: shares, p_price: price, p_date: date });
+      if (error) fail(error);
+      return data;
+    },
+    async removeTrade(id) {
+      const { error } = await client.from("trades").delete().eq("id", id);
+      if (error) fail(error);
+    },
     /** Delayed intraday quotes (supabase/functions/quote): {SYMBOL: {price, prevClose, change, time, state, delayMin}}. */
     async quotes(symbols) {
       const { data, error } = await client.functions.invoke("quote", { body: { symbols } });
@@ -168,6 +191,7 @@ function disabled(reason = null) {
     async list() { return []; },
     async listAlerts() { return []; },
     async listPositions() { return []; },
+    async listTrades() { return []; },
     async requestUpdate() { return { dispatched: false }; },
     async quotes() { return {}; },
     async pushKey() { return null; },

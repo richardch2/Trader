@@ -1,0 +1,48 @@
+name: Intraday movers
+
+# Every 30 minutes on weekdays. The hours cover the New York session in both summer
+# (13:30-20:00 UTC) and winter (14:30-21:00 UTC); the script itself skips runs outside
+# 9:35am-4:15pm New York time, and on market holidays it finds no new prices.
+on:
+  schedule:
+    - cron: "5,35 13-21 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: intraday
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Yahoo Finance library
+        run: pip install --quiet yfinance
+
+      - name: Scan movers
+        env:
+          FORCE_INTRADAY: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        run: python scripts/update.py intraday
+
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/intraday.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Intraday movers $(date -u +%H:%M) UTC"
+            git pull --rebase
+            git push
+          fi

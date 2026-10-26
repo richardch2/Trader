@@ -143,6 +143,14 @@
     {
       "name": "news",
       "enabled": true
+    },
+    {
+      "name": "intraday",
+      "enabled": true
+    },
+    {
+      "name": "risk",
+      "enabled": true
     }
   ],
   "pages": [
@@ -234,6 +242,14 @@
           "list": "cautions"
         },
         {
+          "type": "trackrecord",
+          "width": "full",
+          "lists": [
+            "picks",
+            "cautions"
+          ]
+        },
+        {
           "type": "picks",
           "width": "full",
           "list": "watchlist"
@@ -261,6 +277,14 @@
           "type": "picks",
           "width": "full",
           "list": "cautionsLow"
+        },
+        {
+          "type": "trackrecord",
+          "width": "full",
+          "lists": [
+            "picksLow",
+            "cautionsLow"
+          ]
         },
         {
           "type": "addticker",
@@ -407,6 +431,10 @@
           "width": "full"
         },
         {
+          "type": "trades",
+          "width": "full"
+        },
+        {
           "type": "alerts",
           "width": "full"
         }
@@ -419,6 +447,10 @@
       "cards": [
         {
           "type": "ticker",
+          "width": "full"
+        },
+        {
+          "type": "risk",
           "width": "full"
         },
         {
