@@ -28,7 +28,7 @@ TIME_BUDGET = 540          # seconds
 PAUSE = 2.0                # between lookups: Yahoo rate-limits quick bursts
 DILUTION = 0.20            # shares outstanding up this much in a year
 HIGH_SHORT = 0.15          # short interest as a share of the float
-LOW_FLOAT = 20_000_000     # shares
+LOW_FLOAT = 10_000_000     # shares
 SPLIT_DAYS = 365
 
 
