@@ -359,7 +359,7 @@ def liquid(r, liq, floor):
     return bool(v) and v["dollarVol"] >= floor
 
 
-def rebound_picks(ideas):
+def rebound_picks(ideas, limit=TOP_PICKS):
     """$5+ picks: the stocks that fell the most over 20 days and are the most oversold (20-day
     RSI), ranked by the two together within the list's universe. In a 2-year test on the
     Russell 2000 (scripts/research/tune.py) this beat the average liquid $5+ small cap 20 days
@@ -382,22 +382,22 @@ def rebound_picks(ideas):
         why += [x for x in r["signals"] if x["tone"] == "pos"]
         out.append({**r, "score": round(both * 10, 1), "techScore": r["score"], "signals": why, "_rank": both})
     out.sort(key=lambda r: r["_rank"], reverse=True)
-    return [{k: v for k, v in r.items() if k != "_rank"} for r in out[:TOP_PICKS]]
+    return [{k: v for k, v in r.items() if k != "_rank"} for r in out[:limit]]
 
 
-def select(scanned, liq):
+def select(scanned, liq, limit=TOP_PICKS):
     """The four idea lists from scored rows: picks and cautions at $5 and up, and at $1-$5.
     $5+ picks use rebound_picks; the others use the crossover score."""
     def best(ideas):
         picks = sorted((r for r in ideas if r["score"] >= MIN_SCORE),
-                       key=lambda r: (r["score"], r["ind"]["mom20"]), reverse=True)[:TOP_PICKS]
+                       key=lambda r: (r["score"], r["ind"]["mom20"]), reverse=True)[:limit]
         cautions = sorted((r for r in ideas if r["score"] <= -MIN_SCORE),
                           key=lambda r: (r["score"], r["ind"]["mom20"]))[:TOP_CAUTIONS]
         return picks, cautions
 
     big = [r for r in scanned if r["price"] >= MIN_PRICE and liquid(r, liq, MIN_DOLLAR_VOL)]
     _, cautions = best(big)
-    picks = rebound_picks(big)
+    picks = rebound_picks(big, limit)
     picks_low, cautions_low = best([r for r in scanned if LOW_BAND[0] <= r["price"] < LOW_BAND[1]
                                     and liquid(r, liq, MIN_DOLLAR_VOL_LOW)])
     return {"picks": picks, "cautions": cautions, "picksLow": picks_low, "cautionsLow": cautions_low}
@@ -448,6 +448,47 @@ def backtest_lists(members, bench_series, hist=None, period="9mo"):
     return out, hist
 
 
+# ---------- skipping stocks with dilution or a reverse split ----------
+
+INLINE_LOOKUPS = 30   # unchecked candidates looked up during the run, at most
+
+
+def drop_flagged(lists, n=TOP_PICKS):
+    """Keep the first n buy ideas without a dilution or reverse-split flag (data/risk.json).
+    Candidates not checked yet are looked up now and saved into risk.json for risk.py to
+    reuse. Returns the lists and [{symbol, list, why}] for what was skipped."""
+    import time
+    from fetchers import risk as riskmod
+    path = DATA / "risk.json"
+    saved = read("risk")
+    stocks = saved.setdefault("stocks", {})
+    looked, skipped = 0, []
+    out = dict(lists)
+    for name in ("picks", "picksLow"):
+        keep = []
+        for r in lists.get(name, []):
+            if len(keep) >= n:
+                break
+            sym = r["symbol"]
+            if sym not in stocks and looked < INLINE_LOOKUPS:
+                looked += 1
+                try:
+                    time.sleep(riskmod.PAUSE)
+                    stocks[sym] = riskmod.lookup(sym)
+                except Exception as e:
+                    print(f"  picks: couldn't check {sym} for dilution: {type(e).__name__}")
+            bad = [f for f in (stocks.get(sym) or {}).get("flags", []) if f["tone"] == "neg"]
+            if bad:
+                skipped.append({"symbol": sym, "list": name, "why": "; ".join(f["text"] for f in bad)})
+                continue
+            keep.append(r)
+        out[name] = keep
+    if looked:
+        path.write_text(json.dumps(saved, separators=(",", ":")))
+    print(f"  picks: {len(skipped)} skipped for dilution or reverse split ({looked} checked now)")
+    return out, skipped
+
+
 # ---------- run ----------
 
 def read(name):
@@ -485,7 +526,8 @@ def run(config, client, previous):
 
     liq = liquidity(hist, dates[-1]) if dates else {}
     scanned = [with_volume(r, liq) for r in map(row, members) if r]
-    lists = select(scanned, liq)
+    lists, skipped = drop_flagged(select(scanned, liq, limit=TOP_PICKS * 3))
+    lists = {k: v[:TOP_CAUTIONS] if k.startswith("cautions") else v for k, v in lists.items()}
     watch = {s: with_volume(r, liq) for s in named if (r := row(s))}
     print(f"  picks: {len(scanned)} stocks scanned over {len(dates)} days, volume for {len(liq)}; "
           + ", ".join(f"{k} {len(v)}" for k, v in lists.items()))
@@ -509,6 +551,7 @@ def run(config, client, previous):
         "scanned": len(scanned),
         **lists,
         "watchlist": watch,
+        "skipped": skipped,
         "track": track,
         "minDollarVol": {"picks": MIN_DOLLAR_VOL, "low": MIN_DOLLAR_VOL_LOW} if liq else None,
         "backfillProblem": problem,

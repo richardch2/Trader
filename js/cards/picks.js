@@ -95,6 +95,17 @@ export default function picks(opts, ctx) {
         if (row && !ev.target.closest("a, button")) location.hash = ctx.href(row.dataset.sym);
       });
       body.append(table);
+      const skipped = (data?.skipped || []).filter((x) => x.list === which);
+      if (skipped.length) {
+        const note = h("p", "add-hint", "Skipped for dilution or a recent reverse split: ");
+        skipped.forEach((x, i) => {
+          const a = h("a", null, x.symbol);
+          a.href = ctx.href(x.symbol);
+          a.title = x.why;
+          note.append(i ? ", " : "", a);
+        });
+        body.append(note);
+      }
     },
   };
 
