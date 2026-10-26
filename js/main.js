@@ -60,6 +60,50 @@ async function boot() {
   addEventListener("resize", () => { clearTimeout(t); t = setTimeout(renderAll, 120); });
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", renderAll);
   await route();
+
+  // An installed app resumes from memory instead of restarting, so check for new
+  // data whenever it comes back to the screen, and every 5 minutes while open.
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshData(); });
+  addEventListener("focus", () => refreshData());
+  setInterval(() => { if (document.visibilityState === "visible") refreshData(); }, 5 * 60 * 1000);
+}
+
+// ---------- reload the data files when a newer update has been published ----------
+let refreshing = null, lastCheck = 0;
+const stamp = () => Object.values(datasets || {}).map((d) => d?.updated || "").join("|");
+/** Re-read every data file; redraw only if something changed. Returns true when it did. */
+function refreshData({ force = false } = {}) {
+  if (refreshing) return refreshing;
+  if (!force && Date.now() - lastCheck < 20000) return Promise.resolve(false);
+  lastCheck = Date.now();
+  refreshing = (async () => {
+    const fetchers = (config.fetchers || []).filter((f) => f.enabled !== false);
+    const loaded = await Promise.all(fetchers.map((f) => getJSON(`data/${f.name}.json`)));
+    const fresh = Object.fromEntries(fetchers.map((f, i) => [f.name, loaded[i] ?? datasets[f.name]]));
+    const before = stamp();
+    const prev = datasets;
+    datasets = fresh;
+    if (stamp() === before) { datasets = prev; return false; }
+    const y = scrollY;
+    await buildContext();
+    await route();
+    window.scrollTo({ top: y });   // a background refresh keeps your place on the page
+    return true;
+  })().catch((e) => { console.warn("refresh:", e); return false; }).finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+/** After asking for an update, watch for the new data and show it as soon as it lands. */
+function waitForPrices(symbol) {
+  const start = Date.now();
+  const tick = async () => {
+    const has = () => Object.keys(datasets.prices?.series?.[symbol] || {}).length > 0;
+    if (has()) return;
+    await refreshData({ force: true });
+    if (has()) return toast(`${symbol} prices are in.`);
+    if (Date.now() - start < 6 * 60 * 1000) setTimeout(tick, 30000);
+  };
+  setTimeout(tick, 45000);
 }
 
 // ---------- context and the hosted watchlist ----------
@@ -104,8 +148,9 @@ async function buildContext() {
     const r = await db.requestUpdate();
     const where = isCrypto(item.symbol) ? "Crypto" : "the watchlist";
     if (!quiet) toast(r?.dispatched
-      ? `${item.symbol} added to ${where}. Fetching its prices now: reopen the page in about 2 minutes.`
+      ? `${item.symbol} added to ${where}. Fetching its prices now: they'll appear here in about 2 minutes.`
       : `${item.symbol} added to ${where}. Prices arrive with the next daily update.`);
+    if (r?.dispatched) waitForPrices(item.symbol);
     await buildContext();
     await route();
   };
