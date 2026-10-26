@@ -10,14 +10,17 @@ to Alpha Vantage's market-wide top gainers (1 call), keeping only Russell
 2000 members.
 
 Output (data/smallcaps.json):
-    {asOf, prevAsOf, count, source, gainers: [{symbol, name, sector, price, prev, change, weight}],
+    {asOf, rankedAsOf, prevAsOf, count, source, gainers: [{symbol, name, sector, price, prev, change, weight}],
+     gainersLow: same rows for stocks priced $1-$5,
      members: {SYMBOL: [name, sector]}, prices: {SYMBOL: price}, failures}
 """
 import csv
+import json
 import io
 import re
 import urllib.request
 from datetime import datetime
+from pathlib import Path
 
 # iShares Russell 2000 ETF (IWM) holdings; tried in order
 HOLDINGS_URLS = [
@@ -28,6 +31,8 @@ HOLDINGS_URLS = [
 TOP_N = 10
 MIN_PRICE = 1.0        # skip sub-$1 stocks
 MAX_CHANGE = 2.0       # skip moves over +200%, almost always a reverse split or bad print
+LOW_BAND = (1.0, 5.0)  # the "$1-$5" list: at least $1, under $5
+HISTORY = Path(__file__).resolve().parent.parent.parent / "data" / "picks-history.json"
 
 
 def num(s):
@@ -96,11 +101,13 @@ def parse_holdings(text: str):
     return as_of, stocks
 
 
-def rank(stocks, prev_prices):
+def rank(stocks, prev_prices, band=None):
+    """Top gainers; with band=(lo, hi), only stocks priced lo or more and under hi."""
+    lo, hi = band or (MIN_PRICE, float("inf"))
     rows = []
     for sym, s in stocks.items():
         prev = prev_prices.get(sym)
-        if not prev or s["price"] < MIN_PRICE:
+        if not prev or not lo <= s["price"] < hi:
             continue
         change = s["price"] / prev - 1
         if change > MAX_CHANGE:
@@ -109,6 +116,25 @@ def rank(stocks, prev_prices):
                      "prev": prev, "change": round(change, 5), "weight": s["weight"]})
     rows.sort(key=lambda r: r["change"], reverse=True)
     return rows[:TOP_N]
+
+
+def history_gainers(stocks):
+    """Rank from the last two days of the Russell 2000 closing history that picks.py keeps
+    (from Yahoo), for when the holdings files can't be compared yet. None if unavailable."""
+    try:
+        saved = json.loads(HISTORY.read_text())
+    except (OSError, ValueError):
+        return None
+    dates = saved.get("dates") or []
+    if len(dates) < 2:
+        return None
+    last, prev = {}, {}
+    for sym, closes in saved.get("closes", {}).items():
+        if closes[-1] and closes[-2]:
+            last[sym], prev[sym] = closes[-1], closes[-2]
+    day = {s: {**stocks.get(s, {"name": "", "sector": "", "weight": None}), "price": c}
+           for s, c in last.items() if s in stocks}
+    return dates[-1], dates[-2], rank(day, prev), rank(day, prev, LOW_BAND)
 
 
 def market_gainers(client, stocks):
@@ -137,14 +163,23 @@ def run(config, client, previous):
     members = {s: [v["name"], v["sector"]] for s, v in stocks.items()}
     prices = {s: v["price"] for s, v in stocks.items()}
 
-    # same holdings date as last run (weekend, holiday): keep the existing ranking
-    if previous.get("asOf") == as_of:
+    failures = []
+    gainers_low = []
+    ranked_as_of = as_of
+    hist = history_gainers(stocks)
+    kept = previous.get("asOf") == as_of and previous.get("gainers") and "gainersLow" in previous
+    if previous.get("prices") and previous.get("asOf") and previous["asOf"] < as_of:
+        # a newer holdings file: compare it with the last one
+        gainers, source, prev_as_of = rank(stocks, previous["prices"]), "holdings", previous["asOf"]
+        gainers_low = rank(stocks, previous["prices"], LOW_BAND)
+    elif kept and (not hist or hist[0] <= previous.get("rankedAsOf", previous["asOf"])):
+        # same holdings date as last run (weekend, holiday) and nothing newer: keep the ranking
         print("  smallcaps: holdings unchanged since last run, keeping the ranking")
         return {**previous, "members": members, "prices": prices, "failures": []}
-
-    failures = []
-    if previous.get("prices") and previous.get("asOf"):
-        gainers, source, prev_as_of = rank(stocks, previous["prices"]), "holdings", previous["asOf"]
+    elif hist:
+        # nothing to compare the holdings with: rank from the closing history instead
+        ranked_as_of, prev_as_of, gainers, gainers_low = hist
+        source = "history"
     else:
         prev_as_of = None
         try:
@@ -152,14 +187,16 @@ def run(config, client, previous):
         except Exception as e:
             gainers, source = [], "none"
             failures.append(f"top gainers: {e}")
-    print(f"  smallcaps: {len(gainers)} gainers ({source})")
+    print(f"  smallcaps: {len(gainers)} gainers, {len(gainers_low)} at $1-$5 ({source}, {ranked_as_of})")
 
     return {
-        "asOf": as_of,
+        "asOf": as_of,              # date of the holdings file (prices below); picks.py relies on it
+        "rankedAsOf": ranked_as_of,  # the day the gainers are for
         "prevAsOf": prev_as_of,
         "count": len(stocks),
         "source": source,
         "gainers": gainers,
+        "gainersLow": gainers_low,
         "members": members,
         "prices": prices,
         "failures": failures,

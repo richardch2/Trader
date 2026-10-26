@@ -16,7 +16,8 @@ While that history is shorter than KEEP_DAYS it downloads older holdings files,
 up to BACKFILL_PER_RUN a run. Run it after prices and smallcaps.
 
 Output (data/picks.json):
-    {asOf, historyDays, scanned, picks: [row], cautions: [row], watchlist: {SYMBOL: row},
+    {asOf, historyDays, scanned, picks: [row], cautions: [row], picksLow: [row], cautionsLow: [row],
+     watchlist: {SYMBOL: row},
      backfillProblem (why older holdings files didn't download, or null), failures}
     row = {symbol, name, sector, price, score, signals: [{text, tone}],
            ind: {sma20, sma50, sma200, rsi, macd, macdSignal, mom20}}
@@ -35,6 +36,7 @@ BACKFILL_PER_RUN = 30   # older holdings files to try per run while history is s
 YAHOO_PERIOD = "4mo"    # Yahoo history to fetch while history is short (~84 trading days)
 MIN_DAYS = 21           # fewest closes a stock needs to be scanned
 MIN_PRICE = 5.0         # ideas only for stocks at or above this price
+LOW_BAND = (1.0, 5.0)   # a second set of ideas for stocks priced $1 to under $5
 CROSS_WITHIN = 3        # a cross counts if it happened in the last few sessions
 TOP_PICKS = 10
 TOP_CAUTIONS = 5
@@ -327,13 +329,17 @@ def run(config, client, previous):
         return {"symbol": sym, "name": name or named.get(sym) or "", "sector": sector, **a}
 
     scanned = [r for r in map(row, members) if r]
-    ideas = [r for r in scanned if r["price"] >= MIN_PRICE]
-    picks = sorted((r for r in ideas if r["score"] >= MIN_SCORE),
-                   key=lambda r: (r["score"], r["ind"]["mom20"]), reverse=True)[:TOP_PICKS]
-    cautions = sorted((r for r in ideas if r["score"] <= -MIN_SCORE),
-                      key=lambda r: (r["score"], r["ind"]["mom20"]))[:TOP_CAUTIONS]
+    def best(ideas):
+        picks = sorted((r for r in ideas if r["score"] >= MIN_SCORE),
+                       key=lambda r: (r["score"], r["ind"]["mom20"]), reverse=True)[:TOP_PICKS]
+        cautions = sorted((r for r in ideas if r["score"] <= -MIN_SCORE),
+                          key=lambda r: (r["score"], r["ind"]["mom20"]))[:TOP_CAUTIONS]
+        return picks, cautions
+
+    picks, cautions = best([r for r in scanned if r["price"] >= MIN_PRICE])
+    picks_low, cautions_low = best([r for r in scanned if LOW_BAND[0] <= r["price"] < LOW_BAND[1]])
     watch = {s: r for s in named if (r := row(s))}
-    print(f"  picks: {len(scanned)} stocks scanned over {len(dates)} days, {len(picks)} picks, {len(cautions)} cautions")
+    print(f"  picks: {len(scanned)} stocks scanned over {len(dates)} days, {len(picks)} picks, {len(cautions)} cautions; $1-$5: {len(picks_low)} picks, {len(cautions_low)} cautions")
 
     if not scanned and not watch:
         raise RuntimeError(f"not enough history to scan yet ({len(dates)} of {MIN_DAYS} days)")
@@ -343,6 +349,8 @@ def run(config, client, previous):
         "scanned": len(scanned),
         "picks": picks,
         "cautions": cautions,
+        "picksLow": picks_low,
+        "cautionsLow": cautions_low,
         "watchlist": watch,
         "backfillProblem": problem,
         "failures": [],

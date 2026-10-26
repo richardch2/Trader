@@ -208,7 +208,8 @@
       "cards": [
         {
           "type": "topgainers",
-          "width": "full"
+          "width": "full",
+          "filter": true
         },
         {
           "type": "addticker",
@@ -236,6 +237,34 @@
           "type": "picks",
           "width": "full",
           "list": "watchlist"
+        }
+      ]
+    },
+    {
+      "id": "under5",
+      "title": "$1–$5",
+      "heading": "$1–$5 small caps",
+      "ranges": false,
+      "cards": [
+        {
+          "type": "topgainers",
+          "width": "full",
+          "band": "low",
+          "title": "Top 10 at $1–$5 today"
+        },
+        {
+          "type": "picks",
+          "width": "full",
+          "list": "picksLow"
+        },
+        {
+          "type": "picks",
+          "width": "full",
+          "list": "cautionsLow"
+        },
+        {
+          "type": "addticker",
+          "width": "full"
         }
       ]
     },

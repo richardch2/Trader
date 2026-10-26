@@ -1,6 +1,6 @@
 // Daily ideas from moving averages, MACD and RSI (data/picks.json): each stock with its
 // score, the signals behind it, and a button to add it to the hosted watchlist.
-// Options: title, note, list ("picks" default, "cautions", "watchlist", "crypto" or "tickers"), count,
+// Options: title, note, list ("picks" default, "cautions", "picksLow", "cautionsLow" ($1-$5 stocks), "watchlist", "crypto" or "tickers"), count,
 // notify (default true on the picks list: the "Notify me" control for new picks)
 import { cardHead, h, addCell, earningsBadge } from "../core.js";
 import { pct, money, tone, date } from "../lib/format.js";
@@ -9,6 +9,8 @@ import { pushState, enablePush, disablePush } from "../lib/push.js";
 const TITLES = {
   picks: "Today's picks",
   cautions: "Weakening",
+  picksLow: "$1–$5 picks",
+  cautionsLow: "$1–$5 weakening",
   watchlist: "Watchlist signals",
   tickers: "Index signals",
   crypto: "Crypto signals",
@@ -16,6 +18,8 @@ const TITLES = {
 const NOTES = {
   picks: "Russell 2000 stocks ($5 and up) with the strongest buy signals: moving-average and MACD crossovers, RSI rebounds, strength against the index.",
   cautions: "Russell 2000 stocks with the strongest sell signals.",
+  picksLow: "Russell 2000 stocks priced $1 to $5 with the strongest buy signals. Low-priced stocks swing hard: treat these as ideas to check, not calls.",
+  cautionsLow: "Russell 2000 stocks priced $1 to $5 with the strongest sell signals.",
   watchlist: "Moving averages, MACD and RSI for each stock you watch.",
   tickers: "Moving averages, MACD and RSI for each index ETF.",
   crypto: "Moving averages, MACD and RSI for each coin, on daily closes.",
@@ -25,11 +29,12 @@ const MIN_DAYS = 21;
 export default function picks(opts, ctx) {
   const data = ctx.data.picks;
   const which = opts.list || "picks";
-  const count = opts.count || (which === "cautions" ? 5 : 10);
+  const count = opts.count || (which.startsWith("cautions") ? 5 : 10);
+  const scan = ["picks", "cautions", "picksLow", "cautionsLow"].includes(which);
   let body, noteEl;
 
   function rows() {
-    if (which === "picks" || which === "cautions") return (data?.[which] || []).slice(0, count);
+    if (scan) return (data?.[which] || []).slice(0, count);
     const sigs = data?.watchlist || {};
     return ctx.list(which)
       .map((t) => sigs[t.symbol] ? { ...sigs[t.symbol], name: sigs[t.symbol].name || t.name } : { symbol: t.symbol, name: t.name, waiting: true })
@@ -54,7 +59,6 @@ export default function picks(opts, ctx) {
         return;
       }
 
-      const scan = which === "picks" || which === "cautions";
       const showAction = ctx.db.enabled && which !== "tickers";
       const table = document.createElement("table");
       table.className = "linked picks";
@@ -146,8 +150,10 @@ export default function picks(opts, ctx) {
     if (data.historyDays < MIN_DAYS) {
       return `Building price history for the Russell 2000: ${data.historyDays} of ${MIN_DAYS} days so far. Picks start once there's enough for the moving averages.`;
     }
-    return which === "picks" ? `No strong buy signals among ${data.scanned.toLocaleString()} stocks today.`
-      : `No strong sell signals among ${data.scanned.toLocaleString()} stocks today.`;
+    if (!(which in data)) return "$1–$5 signals start with the next daily update.";
+    const range = which.endsWith("Low") ? " priced $1 to $5" : "";
+    return which.startsWith("picks") ? `No strong buy signals among ${data.scanned.toLocaleString()} stocks${range} today.`
+      : `No strong sell signals among ${data.scanned.toLocaleString()} stocks${range} today.`;
   }
 }
 

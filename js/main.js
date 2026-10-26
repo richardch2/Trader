@@ -245,8 +245,10 @@ async function route() {
   const inTop = ctx.data.smallcaps?.gainers?.some((g) => g.symbol === arg) && pages.some((p) => p.id === "top10");
   const inPicks = [...(ctx.data.picks?.picks || []), ...(ctx.data.picks?.cautions || [])].some((r) => r.symbol === arg)
     && pages.some((p) => p.id === "picks");
+  const inLow = [...(ctx.data.smallcaps?.gainersLow || []), ...(ctx.data.picks?.picksLow || []), ...(ctx.data.picks?.cautionsLow || [])]
+    .some((r) => r.symbol === arg) && pages.some((p) => p.id === "under5");
   const parent = page.parent || (page.id !== "ticker" ? pages[0].id
-    : ctx.watchlist.some((w) => w.symbol === arg) ? "watchlist" : inPicks ? "picks" : inTop ? "top10" : pages[0].id);
+    : ctx.watchlist.some((w) => w.symbol === arg) ? "watchlist" : inPicks ? "picks" : inTop ? "top10" : inLow ? "under5" : pages[0].id);
   const current = page.hidden ? parent : page.id;
   document.querySelectorAll("#menu a").forEach((a) => a.toggleAttribute("aria-current", a.dataset.page === current));
 
