@@ -7,7 +7,7 @@ import { pct, money, tone, date } from "../lib/format.js";
 import { pushState, enablePush, disablePush } from "../lib/push.js";
 
 const TITLES = {
-  picks: "Today's picks",
+  picks: "Rebound candidates",
   cautions: "Weakening",
   picksLow: "$1–$5 picks",
   cautionsLow: "$1–$5 weakening",
@@ -16,10 +16,10 @@ const TITLES = {
   crypto: "Crypto signals",
 };
 const NOTES = {
-  picks: "Russell 2000 stocks ($5 and up) with the strongest buy signals: moving-average and MACD crossovers, RSI rebounds, strength against the index.",
-  cautions: "Russell 2000 stocks with the strongest sell signals.",
-  picksLow: "Russell 2000 stocks priced $1 to $5 with the strongest buy signals. Low-priced stocks swing hard: treat these as ideas to check, not calls.",
-  cautionsLow: "Russell 2000 stocks priced $1 to $5 with the strongest sell signals.",
+  picks: "Russell 2000 stocks ($5 and up) that fell the most over the last month and are the most oversold: rebound candidates. In a 2-year test these beat the average small cap 20 days later more often than not, but single picks can keep falling.",
+  cautions: "Russell 2000 stocks ($5 and up) with the strongest sell signals. In a 2-year test these didn't reliably lag, so treat them as a heads-up on stocks you own, not a prediction.",
+  picksLow: "Russell 2000 stocks priced $1 to $5 with the strongest buy signals (moving-average and MACD crossovers, RSI rebounds). No rule tested reliably for $1–$5 stocks, so treat these as ideas to check, not calls.",
+  cautionsLow: "Russell 2000 stocks priced $1 to $5 with the strongest sell signals. These didn't reliably lag in testing either.",
   watchlist: "Moving averages, MACD and RSI for each stock you watch.",
   tickers: "Moving averages, MACD and RSI for each index ETF.",
   crypto: "Moving averages, MACD and RSI for each coin, on daily closes.",

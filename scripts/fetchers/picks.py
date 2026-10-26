@@ -176,7 +176,8 @@ def analyze(closes, bench=None):
         "score": sum(p for p, _ in signals),
         "signals": [{"text": t, "tone": "pos" if p > 0 else "neg" if p < 0 else ""} for p, t in signals],
         "ind": {"sma20": rnd(s20[-1]), "sma50": rnd(s50[-1]), "sma200": rnd(s200[-1]), "rsi": rnd(r[-1], 1),
-                "macd": rnd(m[-1], 3), "macdSignal": rnd(sig[-1], 3), "mom20": rnd(mom20, 4)},
+                "macd": rnd(m[-1], 3), "macdSignal": rnd(sig[-1], 3), "mom20": rnd(mom20, 4),
+                "rsi20": rnd(rsi(closes, 20)[-1], 1)},
     }
 
 
@@ -358,8 +359,35 @@ def liquid(r, liq, floor):
     return bool(v) and v["dollarVol"] >= floor
 
 
+def rebound_picks(ideas):
+    """$5+ picks: the stocks that fell the most over 20 days and are the most oversold (20-day
+    RSI), ranked by the two together within the list's universe. In a 2-year test on the
+    Russell 2000 (scripts/research/tune.py) this beat the average liquid $5+ small cap 20 days
+    later in each of four quarters, where the crossover score went flat. Each row's "score"
+    becomes 0-10: how strongly it ranks on both."""
+    pool = [r for r in ideas if r["ind"]["mom20"] is not None and r["ind"].get("rsi20") is not None]
+    if not pool:
+        return []
+    n = len(pool)
+    by_drop = {r["symbol"]: i / (n - 1 or 1) for i, r in enumerate(sorted(pool, key=lambda r: r["ind"]["mom20"], reverse=True))}
+    by_rsi = {r["symbol"]: i / (n - 1 or 1) for i, r in enumerate(sorted(pool, key=lambda r: r["ind"]["rsi20"], reverse=True))}
+    out = []
+    for r in pool:
+        both = (by_drop[r["symbol"]] + by_rsi[r["symbol"]]) / 2
+        if r["ind"]["mom20"] >= 0:      # it has to have fallen
+            continue
+        why = [{"text": f"Down {-r['ind']['mom20'] * 100:.0f}% in 20 days", "tone": "neg"},
+               {"text": f"RSI {r['ind']['rsi20']:.0f}: {'oversold' if r['ind']['rsi20'] < 35 else 'weak'}", "tone": ""}]
+        # signs of turning up, from the crossover rules, as context
+        why += [x for x in r["signals"] if x["tone"] == "pos"]
+        out.append({**r, "score": round(both * 10, 1), "techScore": r["score"], "signals": why, "_rank": both})
+    out.sort(key=lambda r: r["_rank"], reverse=True)
+    return [{k: v for k, v in r.items() if k != "_rank"} for r in out[:TOP_PICKS]]
+
+
 def select(scanned, liq):
-    """The four idea lists from scored rows: picks and cautions at $5 and up, and at $1-$5."""
+    """The four idea lists from scored rows: picks and cautions at $5 and up, and at $1-$5.
+    $5+ picks use rebound_picks; the others use the crossover score."""
     def best(ideas):
         picks = sorted((r for r in ideas if r["score"] >= MIN_SCORE),
                        key=lambda r: (r["score"], r["ind"]["mom20"]), reverse=True)[:TOP_PICKS]
@@ -367,7 +395,9 @@ def select(scanned, liq):
                           key=lambda r: (r["score"], r["ind"]["mom20"]))[:TOP_CAUTIONS]
         return picks, cautions
 
-    picks, cautions = best([r for r in scanned if r["price"] >= MIN_PRICE and liquid(r, liq, MIN_DOLLAR_VOL)])
+    big = [r for r in scanned if r["price"] >= MIN_PRICE and liquid(r, liq, MIN_DOLLAR_VOL)]
+    _, cautions = best(big)
+    picks = rebound_picks(big)
     picks_low, cautions_low = best([r for r in scanned if LOW_BAND[0] <= r["price"] < LOW_BAND[1]
                                     and liquid(r, liq, MIN_DOLLAR_VOL_LOW)])
     return {"picks": picks, "cautions": cautions, "picksLow": picks_low, "cautionsLow": cautions_low}
