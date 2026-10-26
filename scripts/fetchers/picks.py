@@ -34,7 +34,7 @@ HISTORY = DATA / "picks-history.json"
 
 KEEP_DAYS = 60          # trading days of Russell 2000 closes to keep (50-day average + room for crosses)
 BACKFILL_PER_RUN = 30   # older holdings files to try per run while history is short
-YAHOO_PERIOD = "4mo"    # Yahoo history to fetch while history is short (~84 trading days)
+YAHOO_PERIOD = "9mo"    # Yahoo history to fetch while history is short; the back-test reuses it
 MIN_DAYS = 21           # fewest closes a stock needs to be scanned
 MIN_PRICE = 5.0         # ideas only for stocks at or above this price
 LOW_BAND = (1.0, 5.0)   # a second set of ideas for stocks priced $1 to under $5
@@ -378,20 +378,29 @@ def with_volume(r, liq):
     return {**r, "relVol": v and v["relVol"], "dollarVol": v and v["dollarVol"]}
 
 
-def backtest_lists(members, bench_series, period="9mo"):
-    """Rebuild the idea lists for each past day, from a longer Yahoo download kept only in
-    memory: {day: lists}, plus the closes to score them. Used once, to start the track record."""
-    hist, vols = {}, {}
-    saved = dict(VOLUMES)
-    VOLUMES.clear()
-    try:
-        added, problem = yahoo_backfill(hist, members, period)
+def backtest_lists(members, bench_series, hist=None, period="9mo"):
+    """Rebuild the idea lists for each past day, from a long history kept only in memory
+    (this run's, if it is long enough, else a fresh Yahoo download): {day: lists}, plus the
+    closes to score them. Used once, to start the track record."""
+    import time
+    if hist and len(hist) >= KEEP_DAYS + 40:
         vols = dict(VOLUMES)
-    finally:
-        VOLUMES.clear()
-        VOLUMES.update(saved)
-    if not added:
-        raise RuntimeError(problem or "Yahoo gave no history")
+    else:
+        hist, vols, problem = {}, {}, None
+        saved = dict(VOLUMES)
+        for wait in (20, 60, 120):   # Yahoo limits back-to-back batch downloads
+            time.sleep(wait)
+            VOLUMES.clear()
+            try:
+                added, problem = yahoo_backfill(hist, members, period)
+                vols = dict(VOLUMES)
+            finally:
+                VOLUMES.clear()
+                VOLUMES.update(saved)
+            if added:
+                break
+        if not hist:
+            raise RuntimeError(problem or "Yahoo gave no history")
     dates = sorted(hist)
     bench_dates = sorted(bench_series)
     out = {}
@@ -455,7 +464,7 @@ def run(config, client, previous):
     if dates and lists:
         try:
             track = trackrec.update(lists, dates[-1], hist, prices.get(config.get("primary", "IWM"), {}),
-                                    members, backtest=lambda: backtest_lists(members, prices.get(config.get("primary", "IWM"), {})))
+                                    members, backtest=lambda: backtest_lists(members, prices.get(config.get("primary", "IWM"), {}), hist))
         except Exception as e:  # the track record never blocks the day's picks
             track = previous.get("track") if previous else None
             failures.append(f"track record: {type(e).__name__}: {e}")

@@ -24,7 +24,8 @@ from fetchers.picks import yahoo_symbol
 DATA = Path(__file__).resolve().parent.parent.parent / "data"
 REFRESH_DAYS = 3
 MAX_LOOKUPS = 120          # per run, so a long list can't stall the update
-TIME_BUDGET = 300          # seconds
+TIME_BUDGET = 540          # seconds
+PAUSE = 2.0                # between lookups: Yahoo rate-limits quick bursts
 DILUTION = 0.20            # shares outstanding up this much in a year
 HIGH_SHORT = 0.15          # short interest as a share of the float
 LOW_FLOAT = 20_000_000     # shares
@@ -132,6 +133,7 @@ def run(config, client, previous):
     want = symbols(config)
     fresh_after = (date.today() - timedelta(days=REFRESH_DAYS)).isoformat()
     stocks, failures, looked, started = {}, [], 0, time.time()
+    limited = 0
     for sym in want:
         prev = old.get(sym)
         if prev and prev.get("checked", "") > fresh_after:
@@ -141,13 +143,26 @@ def run(config, client, previous):
             if prev:
                 stocks[sym] = prev
             continue
-        looked += 1
-        try:
-            stocks[sym] = lookup(sym)
-        except Exception as e:
-            failures.append(f"{sym}: {type(e).__name__}: {e}"[:200])
+        if limited >= 3:   # still rate-limited after backing off: keep the rest for next run
             if prev:
                 stocks[sym] = prev
+            continue
+        looked += 1
+        for attempt in range(2):
+            time.sleep(PAUSE if attempt == 0 else 60)
+            try:
+                stocks[sym] = lookup(sym)
+                limited = 0
+                break
+            except Exception as e:
+                rate = "RateLimit" in type(e).__name__ or "Too Many Requests" in str(e)
+                if rate and attempt == 0:
+                    continue
+                limited += rate
+                failures.append(f"{sym}: {type(e).__name__}: {e}"[:200])
+                if prev:
+                    stocks[sym] = prev
+                break
     if want and looked and len(failures) == looked:
         failures = [f"every lookup failed ({looked}); first: {failures[0]}"]
     elif len(failures) > 5:
